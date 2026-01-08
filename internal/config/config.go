@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"gopkg.in/yaml.v3"
 )
 
@@ -176,12 +177,8 @@ func (c *Config) GetSeverity(ruleID, defaultSeverity string) string {
 // ShouldSkip returns true if the file should be excluded from linting.
 func (c *Config) ShouldSkip(filePath string) bool {
 	for _, pattern := range c.Exclude {
-		if matched, _ := filepath.Match(pattern, filePath); matched {
-			return true
-		}
-		cleaned := strings.ReplaceAll(pattern, "**", "")
-		cleaned = strings.ReplaceAll(cleaned, "*", "")
-		if cleaned != "" && strings.Contains(filePath, cleaned) {
+		matched, err := doublestar.Match(pattern, filePath)
+		if err == nil && matched {
 			return true
 		}
 	}

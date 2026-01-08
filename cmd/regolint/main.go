@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/burdzwastaken/regolint/internal/evaluator"
 	"github.com/burdzwastaken/regolint/internal/model"
 	"github.com/burdzwastaken/regolint/internal/output"
@@ -91,7 +92,14 @@ func run() error {
 		allViolations = append(allViolations, violations...)
 	}
 
-	return outputResults(allViolations)
+	hasViolations, err := outputResults(allViolations)
+	if err != nil {
+		return err
+	}
+	if hasViolations {
+		os.Exit(1)
+	}
+	return nil
 }
 
 func loadPolicies(dir string) (map[string]string, error) {
@@ -202,12 +210,8 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 
 func shouldSkip(filePath string, patterns []string) bool {
 	for _, pattern := range patterns {
-		if matched, _ := filepath.Match(pattern, filePath); matched {
-			return true
-		}
-		cleaned := strings.ReplaceAll(pattern, "**", "")
-		cleaned = strings.ReplaceAll(cleaned, "*", "")
-		if cleaned != "" && strings.Contains(filePath, cleaned) {
+		matched, err := doublestar.Match(pattern, filePath)
+		if err == nil && matched {
 			return true
 		}
 	}
@@ -233,21 +237,21 @@ func findModulePath() string {
 	return ""
 }
 
-func outputResults(violations []model.Violation) error {
+func outputResults(violations []model.Violation) (bool, error) {
 	if len(violations) == 0 {
-		return nil
+		return false, nil
 	}
 
 	switch *format {
 	case "json":
 		data, err := json.MarshalIndent(violations, "", "  ")
 		if err != nil {
-			return err
+			return false, err
 		}
 		fmt.Println(string(data))
 	case "sarif":
 		if err := output.WriteSARIF(os.Stdout, violations, version); err != nil {
-			return err
+			return false, err
 		}
 	default:
 		for _, v := range violations {
@@ -261,6 +265,5 @@ func outputResults(violations []model.Violation) error {
 		}
 	}
 
-	os.Exit(1)
-	return nil
+	return true, nil
 }

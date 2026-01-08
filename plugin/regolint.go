@@ -179,11 +179,24 @@ func findModulePath(pass *analysis.Pass) string {
 }
 
 func findPosition(pass *analysis.Pass, file *ast.File, line int) token.Pos {
-	for _, decl := range file.Decls {
-		pos := pass.Fset.Position(decl.Pos())
-		if pos.Line == line {
-			return decl.Pos()
+	best := file.Pos()
+	var bestLine int
+
+	ast.Inspect(file, func(n ast.Node) bool {
+		if n == nil {
+			return false
 		}
-	}
-	return file.Pos()
+		pos := pass.Fset.Position(n.Pos())
+		if pos.Line == line {
+			best = n.Pos()
+			return false
+		}
+		if pos.Line < line && pos.Line > bestLine {
+			best = n.Pos()
+			bestLine = pos.Line
+		}
+		return true
+	})
+
+	return best
 }
