@@ -127,17 +127,114 @@ deny contains violation if {
 
 Policies receive a `CodeContext` as input with the following structure:
 
-| Field         | Type   | Description                                  |
-|---------------|--------|----------------------------------------------|
-| `file_path`   | string | Absolute path to the source file             |
-| `module_path` | string | Go module path                               |
-| `package`     | object | Package name, path and doc                   |
-| `imports`     | array  | Import declarations                          |
-| `functions`   | array  | Function and method declarations             |
-| `types`       | array  | Type declarations (struct, interface, alias) |
-| `variables`   | array  | Package-level variables                      |
-| `constants`   | array  | Constants                                    |
-| `calls`       | array  | Function and method calls                    |
+| Field           | Type   | Description                                  |
+|-----------------|--------|----------------------------------------------|
+| `file_path`     | string | Absolute path to the source file             |
+| `module_path`   | string | Go module path                               |
+| `package`       | object | Package name, path and doc                   |
+| `imports`       | array  | Import declarations                          |
+| `functions`     | array  | Function and method declarations             |
+| `types`         | array  | Type declarations (struct, interface, alias) |
+| `variables`     | array  | Package-level variables                      |
+| `constants`     | array  | Constants                                    |
+| `calls`         | array  | Function and method calls                    |
+| `type_usages`   | array  | References to types                          |
+| `field_accesses`| array  | Field access expressions                     |
+
+### Type Reference
+
+#### ImportInfo (`input.imports[]`)
+
+| Field      | Type   | Description                                |
+|------------|--------|--------------------------------------------|
+| `path`     | string | Import path (e.g., `"fmt"`)                |
+| `alias`    | string | Import alias if any (e.g., `"_"`)          |
+| `position` | object | Source location (`file`, `line`, `column`) |
+
+#### FunctionInfo (`input.functions[]`)
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| `name`        | string  | Function name                              |
+| `receiver`    | string  | Receiver type for methods (e.g., `"*Foo"`) |
+| `parameters`  | array   | Parameters (`name`, `type`)                |
+| `returns`     | array   | Return values (`name`, `type`)             |
+| `is_exported` | boolean | Whether function is exported               |
+| `is_test`     | boolean | Whether function is a test                 |
+| `complexity`  | integer | Cyclomatic complexity                      |
+| `line_count`  | integer | Number of lines in function body           |
+| `position`    | object  | Source location                            |
+| `comments`    | array   | Doc comments                               |
+| `annotations` | object  | Parsed annotations from comments           |
+
+#### TypeInfo (`input.types[]`)
+
+| Field         | Type    | Description                                    |
+|---------------|---------|------------------------------------------------|
+| `name`        | string  | Type name                                      |
+| `kind`        | string  | `"struct"`, `"interface"`, `"alias"`, `"func"` |
+| `is_exported` | boolean | Whether type is exported                       |
+| `fields`      | array   | Struct fields (see FieldInfo)                  |
+| `methods`     | array   | Methods (see MethodInfo)                       |
+| `embeds`      | array   | Embedded type names                            |
+| `implements`  | array   | Interfaces this type implements                |
+| `position`    | object  | Source location                                |
+| `doc`         | string  | Doc comment                                    |
+
+#### FieldInfo (`input.types[].fields[]`)
+
+| Field        | Type    | Description                              |
+|--------------|---------|------------------------------------------|
+| `name`       | string  | Field name                               |
+| `type`       | string  | Field type                               |
+| `tags`       | string  | Struct tags (e.g., `` `json:"foo"` ``)   |
+| `is_exported`| boolean | Whether field is exported                |
+| `is_embedded`| boolean | Whether field is an embedded type        |
+| `position`   | object  | Source location                          |
+
+#### VariableInfo (`input.variables[]`, `input.constants[]`)
+
+| Field         | Type    | Description                                  |
+|---------------|---------|----------------------------------------------|
+| `name`        | string  | Variable/constant name                       |
+| `type`        | string  | Type if declared                             |
+| `is_exported` | boolean | Whether exported                             |
+| `is_const`    | boolean | Whether it's a constant                      |
+| `value`       | string  | Literal value if available                   |
+| `in_function` | string  | Containing function (empty if package-level) |
+| `position`    | object  | Source location                              |
+
+#### CallInfo (`input.calls[]`)
+
+| Field          | Type   | Description                              |
+|----------------|--------|------------------------------------------|
+| `function`     | string | Called function name                     |
+| `package`      | string | Package of called function               |
+| `receiver`     | string | Receiver variable name for method calls  |
+| `receiver_type`| string | Receiver type for method calls           |
+| `args`         | array  | Argument expressions as strings          |
+| `in_function`  | string | Function containing this call            |
+| `position`     | object | Source location                          |
+
+#### TypeUsageInfo (`input.type_usages[]`)
+
+| Field         | Type   | Description                                     |
+|---------------|--------|-------------------------------------------------|
+| `type_name`   | string | Name of the type being used                     |
+| `package`     | string | Package of the type                             |
+| `in_function` | string | Function containing this usage                  |
+| `context`     | string | Usage context (e.g., `"parameter"`, `"return"`) |
+| `position`    | object | Source location                                 |
+
+#### FieldAccessInfo (`input.field_accesses[]`)
+
+| Field        | Type   | Description                              |
+|--------------|--------|------------------------------------------|
+| `field`      | string | Accessed field name                      |
+| `receiver`   | string | Receiver expression                      |
+| `type`       | string | Type of the receiver                     |
+| `in_function`| string | Function containing this access          |
+| `position`   | object | Source location                          |
 
 ### PackageContext Schema (Package-wide)
 
@@ -267,7 +364,9 @@ deny contains violation if {
 }
 ```
 
-## Included Policies
+## Example Policies
+
+The `policies/` directory contains example policies you can use as starting points. Copy them to your project and customize as needed.
 
 | Policy                  | ID      | Description                                    |
 |-------------------------|---------|------------------------------------------------|
