@@ -1,0 +1,23 @@
+# binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/drftctl
+/server
+
+# go
+go.work
+go.work.sum
+bin/
+
+# environment
+.env
+
+# nix
+result
+result-*
+.direnv/
