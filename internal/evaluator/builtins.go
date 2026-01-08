@@ -2,14 +2,16 @@ package evaluator
 
 import (
 	"regexp"
-	"sync"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/open-policy-agent/opa/v1/ast"
 	"github.com/open-policy-agent/opa/v1/rego"
 	"github.com/open-policy-agent/opa/v1/types"
 )
 
-var regexCache sync.Map
+const maxRegexCacheSize = 1000
+
+var regexCache, _ = lru.New[string, *regexp.Regexp](maxRegexCacheSize)
 
 func init() {
 	registerBuiltins()
@@ -109,8 +111,8 @@ func registerBuiltins() {
 }
 
 func getCompiledRegex(pattern string) (*regexp.Regexp, error) {
-	if cached, ok := regexCache.Load(pattern); ok {
-		return cached.(*regexp.Regexp), nil
+	if cached, ok := regexCache.Get(pattern); ok {
+		return cached, nil
 	}
 
 	re, err := regexp.Compile(pattern)
@@ -118,6 +120,6 @@ func getCompiledRegex(pattern string) (*regexp.Regexp, error) {
 		return nil, err
 	}
 
-	regexCache.Store(pattern, re)
+	regexCache.Add(pattern, re)
 	return re, nil
 }

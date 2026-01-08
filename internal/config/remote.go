@@ -5,13 +5,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
 	"strings"
 	"time"
 )
 
-// FetchRemotePolicies fetches all remote policies and returns their contents.
 func (c *Config) FetchRemotePolicies() (map[string]string, error) {
 	policies := make(map[string]string)
 
@@ -40,8 +42,12 @@ func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 		return "", fmt.Errorf("invalid URL %s: %w", remote.URL, err)
 	}
 
-	if u.Scheme != "https" && u.Scheme != "http" {
-		return "", fmt.Errorf("unsupported URL scheme %q: only http/https allowed", u.Scheme)
+	if u.Scheme != "https" {
+		return "", fmt.Errorf("insecure URL scheme %q: only https allowed", u.Scheme)
+	}
+
+	if isBlockedHost(u.Host) {
+		return "", fmt.Errorf("blocked host %q: internal/private addresses not allowed", u.Host)
 	}
 
 	resp, err := client.Get(remote.URL)
@@ -63,13 +69,55 @@ func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 		return "", fmt.Errorf("policy %s exceeds maximum size of %d bytes", remote.URL, maxPolicySize)
 	}
 
-	if remote.Checksum != "" {
+	if remote.Checksum == "" {
+		fmt.Fprintf(os.Stderr, "warning: remote policy %s has no checksum, integrity not verified\n", remote.URL)
+	} else {
 		if err := verifyChecksum(body, remote.Checksum); err != nil {
 			return "", fmt.Errorf("verifying %s: %w", remote.URL, err)
 		}
 	}
 
 	return string(body), nil
+}
+
+func isBlockedHost(host string) bool {
+	hostname := host
+
+	if strings.HasPrefix(hostname, "[") {
+		if idx := strings.Index(hostname, "]"); idx != -1 {
+			hostname = hostname[1:idx]
+		}
+	} else if idx := strings.LastIndex(hostname, ":"); idx != -1 {
+		if strings.Count(hostname, ":") == 1 {
+			hostname = hostname[:idx]
+		}
+	}
+
+	hostname = strings.ToLower(hostname)
+
+	if hostname == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(hostname)
+	if ip == nil {
+		ips, err := net.LookupIP(hostname)
+		if err != nil || len(ips) == 0 {
+			return false
+		}
+		ip = ips[0]
+	}
+
+	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
+		return true
+	}
+
+	// AWS/GCP/Azure metadata endpoints
+	if ip.Equal(net.ParseIP("169.254.169.254")) {
+		return true
+	}
+
+	return false
 }
 
 func verifyChecksum(data []byte, expected string) error {
@@ -91,10 +139,16 @@ func policyNameFromURL(rawURL string) string {
 		return rawURL
 	}
 
-	parts := strings.Split(u.Path, "/")
-	if len(parts) > 0 {
-		return parts[len(parts)-1]
+	cleanPath := strings.TrimRight(u.Path, "/")
+	name := path.Base(cleanPath)
+
+	if name == "" || name == "." || name == "/" {
+		return u.Host + ".rego"
 	}
 
-	return u.Host + ".rego"
+	if !strings.HasSuffix(name, ".rego") {
+		return u.Host + ".rego"
+	}
+
+	return name
 }
