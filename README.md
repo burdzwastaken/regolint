@@ -51,23 +51,49 @@ regolint --version
 
 ### With golangci-lint
 
-Add to your `.golangci.yml`:
+regolint integrates with golangci-lint as a [module plugin](https://golangci-lint.run/docs/plugins/module-plugins/).
+
+First, create `.custom-gcl.yml` to build a custom golangci-lint binary with regolint:
 
 ```yaml
-linters-settings:
-  custom:
-    regolint:
-      type: module
-      path: github.com/burdzwastaken/regolint/plugin
-      settings:
-        policy-dir: ./policies
-        policy-files:
-          - ./extra/security.rego
-        disabled:
-          - TAG001
-        exclude:
-          - "**/vendor/**"
-          - "**/*_test.go"
+version: v2.8.0
+plugins:
+  - module: 'github.com/burdzwastaken/regolint'
+    import: 'github.com/burdzwastaken/regolint/plugin'
+    version: v1.0.0
+```
+
+Build the custom binary:
+
+```bash
+golangci-lint custom
+```
+
+Then configure regolint in your `.golangci.yml`:
+
+```yaml
+linters:
+  enable:
+    - regolint
+  settings:
+    custom:
+      regolint:
+        type: module
+        settings:
+          policy-dir: ./policies
+          policy-files:
+            - ./extra/security.rego
+          disabled:
+            - TAG001
+          exclude:
+            - "**/vendor/**"
+            - "**/*_test.go"
+```
+
+Run with your custom binary:
+
+```bash
+./custom-gcl run ./...
 ```
 
 ## Writing Policies
