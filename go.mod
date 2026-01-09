@@ -1,6 +1,6 @@
 module github.com/burdzwastaken/regolint
 
-go 1.25.5
+go 1.24.6
 
 tool github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 
