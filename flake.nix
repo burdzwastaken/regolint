@@ -20,6 +20,7 @@
             gopls
             open-policy-agent
             goreleaser
+            golangci-lint
           ];
 
           shellHook = ''

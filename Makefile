@@ -25,7 +25,8 @@ fmt:
 .PHONY: lint
 lint:
 	go vet ./...
-	go tool golangci-lint run ./... -v
+	# can't run it as go tool because it is ahead of their go.mod...?
+	golangci-lint run ./... -v
 
 ## test: run all Go tests
 .PHONY: test
