@@ -136,6 +136,9 @@ func (p *RegolintPlugin) GetLoadMode() string {
 func (p *RegolintPlugin) buildConfig() *config.Config {
 	cfg := config.Default()
 
+	// default excludes...golangci-lint handles file filtering
+	cfg.Exclude = nil
+
 	if p.settings.PolicyDir != "" {
 		cfg.Policies.Directory = p.settings.PolicyDir
 	}
