@@ -13,6 +13,15 @@ type CodeContext struct {
 	Calls       []CallInfo        `json:"calls"`
 	TypeUsages  []TypeUsageInfo   `json:"type_usages"`
 	FieldAccess []FieldAccessInfo `json:"field_accesses"`
+	Nolints     []NolintDirective `json:"nolints,omitempty"`
+}
+
+// NolintDirective represents a nolint comment that suppresses violations.
+type NolintDirective struct {
+	Line    int      `json:"line"`
+	EndLine int      `json:"end_line,omitempty"`
+	Rules   []string `json:"rules,omitempty"`
+	Reason  string   `json:"reason,omitempty"`
 }
 
 // Position represents a location in source code.

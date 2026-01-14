@@ -13,6 +13,7 @@ import (
 )
 
 // Config represents the regolint configuration.
+// nolint:TAG001 // uses yaml tags
 type Config struct {
 	Policies    PoliciesConfig    `yaml:"policies"`
 	Rules       RulesConfig       `yaml:"rules"`
@@ -23,6 +24,7 @@ type Config struct {
 }
 
 // PoliciesConfig specifies where to load policies from.
+// nolint:TAG001 // uses yaml tags
 type PoliciesConfig struct {
 	Directory string         `yaml:"directory"`
 	Files     []string       `yaml:"files"`
@@ -30,24 +32,28 @@ type PoliciesConfig struct {
 }
 
 // RemotePolicy specifies a policy to fetch from a URL.
+// nolint:TAG001 // uses yaml tags
 type RemotePolicy struct {
 	URL      string `yaml:"url"`
 	Checksum string `yaml:"checksum"`
 }
 
 // RulesConfig allows rule customization.
+// nolint:TAG001 // uses yaml tags
 type RulesConfig struct {
 	Disabled []string          `yaml:"disabled"`
 	Severity map[string]string `yaml:"severity"`
 }
 
 // OutputConfig controls output formatting.
+// nolint:TAG001 // uses yaml tags
 type OutputConfig struct {
 	Format  string `yaml:"format"`
 	Verbose bool   `yaml:"verbose"`
 }
 
 // PerformanceConfig controls performance tuning.
+// nolint:TAG001 // uses yaml tags
 type PerformanceConfig struct {
 	CachePolicies bool   `yaml:"cache_policies"`
 	Parallelism   int    `yaml:"parallelism"`

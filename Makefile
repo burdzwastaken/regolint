@@ -6,9 +6,9 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
 DATE    ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)
 
-## all: tidy, fmt, lint, test, build
+## all: tidy, fmt, lint, test, build, regolint
 .PHONY: all
-all: tidy fmt lint test test-policies build
+all: tidy fmt lint test test-policies build regolint
 
 ## tidy: tidy go modules
 .PHONY: tidy
@@ -25,8 +25,12 @@ fmt:
 .PHONY: lint
 lint:
 	go vet ./...
-	# can't run it as go tool because it is ahead of their go.mod...?
-	golangci-lint run ./... -v
+	go tool golangci-lint run ./... -v
+
+## regolint: run regolint against this codebase
+.PHONY: regolint
+regolint: build
+	./bin/regolint ./...
 
 ## test: run all Go tests
 .PHONY: test

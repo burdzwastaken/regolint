@@ -200,6 +200,9 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 			if isDisabled(v.Rule, disabledRules) {
 				continue
 			}
+			if isSuppressed(v, codeCtx.Nolints) {
+				continue
+			}
 			v.Position.File = filePath
 			violations = append(violations, v)
 		}
@@ -220,6 +223,29 @@ func shouldSkip(filePath string, patterns []string) bool {
 
 func isDisabled(rule string, disabled []string) bool {
 	return slices.Contains(disabled, rule)
+}
+
+func isSuppressed(v model.Violation, nolints []model.NolintDirective) bool {
+	for _, n := range nolints {
+		if n.Line == v.Position.Line || n.Line == v.Position.Line-1 {
+			if matchesRule(n, v.Rule) {
+				return true
+			}
+		}
+		if n.EndLine > 0 && v.Position.Line > n.Line && v.Position.Line <= n.EndLine {
+			if matchesRule(n, v.Rule) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func matchesRule(n model.NolintDirective, rule string) bool {
+	if len(n.Rules) == 0 {
+		return true
+	}
+	return slices.Contains(n.Rules, rule)
 }
 
 func findModulePath() string {

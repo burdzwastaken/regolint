@@ -34,6 +34,7 @@ func init() {
 }
 
 // Settings mirrors config options for golangci-lint integration.
+// nolint:TAG001 // uses mapstructure tags
 type Settings struct {
 	PolicyDir   string   `mapstructure:"policy-dir"`
 	PolicyFiles []string `mapstructure:"policy-files"`

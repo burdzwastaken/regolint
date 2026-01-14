@@ -25,10 +25,5 @@ jobs:
         with:
           version: latest
 
-      - name: Set up golangci-lint
-        uses: golangci/golangci-lint-action@v9
-        with:
-          version: v2.8.0
-
       - name: Build and Test
         run: make

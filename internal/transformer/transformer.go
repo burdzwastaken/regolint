@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/burdzwastaken/regolint/internal/model"
+	"github.com/burdzwastaken/regolint/internal/nolint"
 	"golang.org/x/tools/go/analysis"
 )
 
@@ -47,6 +48,7 @@ func (t *Transformer) Transform(file *ast.File, filePath string) *model.CodeCont
 	}
 
 	ctx.Imports = t.extractImports(file)
+	ctx.Nolints = t.extractNolints(file)
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
@@ -92,4 +94,18 @@ func isTestFunction(name string) bool {
 		strings.HasPrefix(name, "Benchmark") ||
 		strings.HasPrefix(name, "Example") ||
 		strings.HasPrefix(name, "Fuzz")
+}
+
+func (t *Transformer) extractNolints(file *ast.File) []model.NolintDirective {
+	directives := nolint.Extract(t.fset, file)
+	result := make([]model.NolintDirective, len(directives))
+	for i, d := range directives {
+		result[i] = model.NolintDirective{
+			Line:    d.Line,
+			EndLine: d.EndLine,
+			Rules:   d.Rules,
+			Reason:  d.Reason,
+		}
+	}
+	return result
 }
