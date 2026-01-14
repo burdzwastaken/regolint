@@ -28,7 +28,7 @@
             echo ""
             echo "  go:         $(go version)"
             echo "  opa:        $(opa version | grep '^Version:' | cut -d' ' -f2)"
-            echo "  goreleaser: $(goreleaser --version | head -1 | awk '{print $3}')"
+            echo "  goreleaser: $(goreleaser --version | grep GitVersion | head -1 | awk '{print $2}')"
             echo ""
           '';
         };
