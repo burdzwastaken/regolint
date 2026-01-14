@@ -21,3 +21,6 @@ bin/
 result
 result-*
 .direnv/
+
+# linter
+custom-gcl

@@ -2,7 +2,7 @@ package regolint.rules.structs.tags_test
 
 import data.regolint.rules.structs.tags
 
-test_detects_missing_json_tag if {
+test_detects_empty_tags if {
 	violations := tags.deny with input as {"types": [{
 		"name": "User",
 		"kind": "struct",
@@ -12,6 +12,22 @@ test_detects_missing_json_tag if {
 			"is_exported": true,
 			"is_embedded": false,
 			"tags": "",
+			"position": {"line": 5},
+		}],
+		"position": {"line": 4},
+	}]}
+	count(violations) == 1
+}
+
+test_detects_missing_tags_field if {
+	violations := tags.deny with input as {"types": [{
+		"name": "User",
+		"kind": "struct",
+		"is_exported": true,
+		"fields": [{
+			"name": "Name",
+			"is_exported": true,
+			"is_embedded": false,
 			"position": {"line": 5},
 		}],
 		"position": {"line": 4},

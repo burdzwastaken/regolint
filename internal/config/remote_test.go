@@ -1,8 +1,46 @@
 package config
 
 import (
+	"context"
+	"net"
 	"testing"
 )
+
+func TestIsBlockedIP(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		blocked bool
+	}{
+		{"loopback IPv4", "127.0.0.1", true},
+		{"loopback IPv6", "::1", true},
+		{"private 10.x", "10.0.0.1", true},
+		{"private 172.16.x", "172.16.0.1", true},
+		{"private 192.168.x", "192.168.1.1", true},
+		{"link-local IPv4", "169.254.1.1", true},
+		{"link-local IPv6", "fe80::1", true},
+		{"AWS metadata", "169.254.169.254", true},
+		{"unspecified IPv4", "0.0.0.0", true},
+		{"unspecified IPv6", "::", true},
+		{"IPv4-mapped IPv6 loopback", "::ffff:127.0.0.1", true},
+		{"IPv4-mapped IPv6 private", "::ffff:192.168.1.1", true},
+		{"public IPv4", "8.8.8.8", false},
+		{"public IPv6", "2001:4860:4860::8888", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ip := net.ParseIP(tt.ip)
+			if ip == nil {
+				t.Fatalf("invalid IP: %s", tt.ip)
+			}
+			got := isBlockedIP(ip)
+			if got != tt.blocked {
+				t.Errorf("isBlockedIP(%s) = %v, want %v", tt.ip, got, tt.blocked)
+			}
+		})
+	}
+}
 
 func TestIsBlockedHost(t *testing.T) {
 	tests := []struct {
@@ -11,6 +49,8 @@ func TestIsBlockedHost(t *testing.T) {
 		blocked bool
 	}{
 		{"localhost", "localhost", true},
+		{"localhost uppercase", "LOCALHOST", true},
+		{"localhost mixed case", "LocalHost", true},
 		{"localhost with port", "localhost:8080", true},
 		{"loopback IPv4", "127.0.0.1", true},
 		{"loopback IPv4 with port", "127.0.0.1:443", true},
@@ -20,6 +60,7 @@ func TestIsBlockedHost(t *testing.T) {
 		{"link-local", "169.254.1.1", true},
 		{"AWS metadata", "169.254.169.254", true},
 		{"loopback IPv6", "::1", true},
+		{"unspecified", "0.0.0.0", true},
 		{"public IP", "8.8.8.8", false},
 		{"public domain", "example.com", false},
 		{"github.com", "github.com", false},
@@ -103,4 +144,36 @@ func searchString(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestSafeDialContext_BlocksLocalhost(t *testing.T) {
+	ctx := context.Background()
+	_, err := safeDialContext(ctx, "tcp", "localhost:443")
+	if err == nil {
+		t.Error("expected error for localhost, got nil")
+	}
+	if err != nil && !contains(err.Error(), "blocked hostname") {
+		t.Errorf("expected blocked hostname error, got: %v", err)
+	}
+}
+
+func TestSafeDialContext_BlocksPrivateIP(t *testing.T) {
+	ctx := context.Background()
+
+	// Test with IP literal (no DNS resolution needed)
+	_, err := safeDialContext(ctx, "tcp", "127.0.0.1:443")
+	if err == nil {
+		t.Error("expected error for loopback IP, got nil")
+	}
+}
+
+func TestSafeDialContext_InvalidAddress(t *testing.T) {
+	ctx := context.Background()
+	_, err := safeDialContext(ctx, "tcp", "invalid-no-port")
+	if err == nil {
+		t.Error("expected error for invalid address, got nil")
+	}
+	if err != nil && !contains(err.Error(), "invalid address") {
+		t.Errorf("expected invalid address error, got: %v", err)
+	}
 }

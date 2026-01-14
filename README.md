@@ -60,7 +60,7 @@ version: v2.8.0
 plugins:
   - module: 'github.com/burdzwastaken/regolint'
     import: 'github.com/burdzwastaken/regolint/plugin'
-    version: v1.0.0
+    version: v1.0.7
 ```
 
 Build the custom binary:

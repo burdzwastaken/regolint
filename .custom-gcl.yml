@@ -1,0 +1,6 @@
+version: v2.8.0
+
+plugins:
+  - module: github.com/burdzwastaken/regolint
+    import: github.com/burdzwastaken/regolint/plugin
+    path: ../regolint

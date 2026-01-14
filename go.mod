@@ -8,7 +8,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/golangci/plugin-module-register v0.1.2
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/mitchellh/mapstructure v1.5.0
 	github.com/open-policy-agent/opa v1.7.0
 	golang.org/x/tools v0.40.0
 	gopkg.in/yaml.v3 v3.0.1

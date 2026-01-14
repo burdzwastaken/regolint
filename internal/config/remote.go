@@ -1,24 +1,32 @@
 package config
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 	"strings"
 	"time"
 )
 
+// FetchRemotePolicies downloads policies from configured remote URLs.
 func (c *Config) FetchRemotePolicies() (map[string]string, error) {
 	policies := make(map[string]string)
 
 	client := &http.Client{
 		Timeout: 30 * time.Second,
+		Transport: &http.Transport{
+			DialContext: safeDialContext,
+		},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 
 	for _, remote := range c.Policies.Remote {
@@ -34,7 +42,47 @@ func (c *Config) FetchRemotePolicies() (map[string]string, error) {
 	return policies, nil
 }
 
-const maxPolicySize = 10 * 1024 * 1024 // 10MB limit
+func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address %s: %w", addr, err)
+	}
+
+	if isBlockedHostname(host) {
+		return nil, fmt.Errorf("blocked hostname %q", host)
+	}
+
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+	if err != nil {
+		return nil, fmt.Errorf("DNS lookup for %s: %w", host, err)
+	}
+
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no IP addresses found for %s", host)
+	}
+
+	var safeIPs []net.IP
+	for _, ip := range ips {
+		if isBlockedIP(ip) {
+			return nil, fmt.Errorf("blocked IP %s for host %s", ip, host)
+		}
+		safeIPs = append(safeIPs, ip)
+	}
+
+	var lastErr error
+	dialer := &net.Dialer{}
+	for _, ip := range safeIPs {
+		target := net.JoinHostPort(ip.String(), port)
+		conn, err := dialer.DialContext(ctx, network, target)
+		if err == nil {
+			return conn, nil
+		}
+		lastErr = err
+	}
+	return nil, fmt.Errorf("failed to connect to %s: %w", host, lastErr)
+}
+
+const maxPolicySize = 10 * 1024 * 1024
 
 func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 	u, err := url.Parse(remote.URL)
@@ -70,7 +118,7 @@ func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 	}
 
 	if remote.Checksum == "" {
-		fmt.Fprintf(os.Stderr, "warning: remote policy %s has no checksum, integrity not verified\n", remote.URL)
+		log.Printf("[regolint] warning: remote policy %s has no checksum, integrity not verified", remote.URL)
 	} else {
 		if err := verifyChecksum(body, remote.Checksum); err != nil {
 			return "", fmt.Errorf("verifying %s: %w", remote.URL, err)
@@ -78,6 +126,14 @@ func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 	}
 
 	return string(body), nil
+}
+
+func isBlockedHostname(hostname string) bool {
+	return strings.EqualFold(hostname, "localhost")
+}
+
+func isBlockedIP(ip net.IP) bool {
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()
 }
 
 func isBlockedHost(host string) bool {
@@ -93,28 +149,13 @@ func isBlockedHost(host string) bool {
 		}
 	}
 
-	hostname = strings.ToLower(hostname)
-
-	if hostname == "localhost" {
+	if isBlockedHostname(hostname) {
 		return true
 	}
 
 	ip := net.ParseIP(hostname)
-	if ip == nil {
-		ips, err := net.LookupIP(hostname)
-		if err != nil || len(ips) == 0 {
-			return false
-		}
-		ip = ips[0]
-	}
-
-	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-		return true
-	}
-
-	// AWS/GCP/Azure metadata endpoints
-	if ip.Equal(net.ParseIP("169.254.169.254")) {
-		return true
+	if ip != nil {
+		return isBlockedIP(ip)
 	}
 
 	return false

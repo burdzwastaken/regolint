@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"go/parser"
@@ -15,6 +16,7 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/burdzwastaken/regolint/internal/evaluator"
 	"github.com/burdzwastaken/regolint/internal/model"
+	"github.com/burdzwastaken/regolint/internal/nolint"
 	"github.com/burdzwastaken/regolint/internal/output"
 	"github.com/burdzwastaken/regolint/internal/transformer"
 	"golang.org/x/tools/go/analysis"
@@ -37,6 +39,9 @@ var (
 	showVersion = flag.Bool("version", false, "print version and exit")
 )
 
+// ErrViolationsFound is returned when policy violations are detected.
+var ErrViolationsFound = errors.New("violations found")
+
 func main() {
 	flag.Parse()
 
@@ -51,8 +56,11 @@ func main() {
 	}
 
 	if err := run(); err != nil {
+		if errors.Is(err, ErrViolationsFound) {
+			os.Exit(1)
+		}
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		os.Exit(2)
 	}
 }
 
@@ -82,22 +90,20 @@ func run() error {
 	excludePatterns := parseList(*exclude)
 
 	var allViolations []model.Violation
-	modulePath := findModulePath()
 
 	for _, pkg := range pkgs {
-		violations, err := analyzePackage(pkg, eval, modulePath, disabledRules, excludePatterns)
+		violations, err := analyzePackage(pkg, eval, pkg.PkgPath, disabledRules, excludePatterns)
 		if err != nil {
 			return err
 		}
 		allViolations = append(allViolations, violations...)
 	}
 
-	hasViolations, err := outputResults(allViolations)
-	if err != nil {
+	if err := outputResults(allViolations); err != nil {
 		return err
 	}
-	if hasViolations {
-		os.Exit(1)
+	if len(allViolations) > 0 {
+		return ErrViolationsFound
 	}
 	return nil
 }
@@ -196,16 +202,17 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 			return nil, fmt.Errorf("evaluating %s: %w", filePath, err)
 		}
 
+		var filtered []model.Violation
 		for _, v := range fileViolations {
-			if isDisabled(v.Rule, disabledRules) {
-				continue
+			if !isDisabled(v.Rule, disabledRules) {
+				v.Position.File = filePath
+				filtered = append(filtered, v)
 			}
-			if isSuppressed(v, codeCtx.Nolints) {
-				continue
-			}
-			v.Position.File = filePath
-			violations = append(violations, v)
 		}
+
+		filtered = nolint.FilterModelViolations(filtered, codeCtx.Nolints)
+
+		violations = append(violations, filtered...)
 	}
 
 	return violations, nil
@@ -225,59 +232,21 @@ func isDisabled(rule string, disabled []string) bool {
 	return slices.Contains(disabled, rule)
 }
 
-func isSuppressed(v model.Violation, nolints []model.NolintDirective) bool {
-	for _, n := range nolints {
-		if n.Line == v.Position.Line || n.Line == v.Position.Line-1 {
-			if matchesRule(n, v.Rule) {
-				return true
-			}
-		}
-		if n.EndLine > 0 && v.Position.Line > n.Line && v.Position.Line <= n.EndLine {
-			if matchesRule(n, v.Rule) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func matchesRule(n model.NolintDirective, rule string) bool {
-	if len(n.Rules) == 0 {
-		return true
-	}
-	return slices.Contains(n.Rules, rule)
-}
-
-func findModulePath() string {
-	content, err := os.ReadFile("go.mod")
-	if err != nil {
-		return ""
-	}
-
-	for line := range strings.SplitSeq(string(content), "\n") {
-		if mod, ok := strings.CutPrefix(line, "module "); ok {
-			return strings.TrimSpace(mod)
-		}
-	}
-
-	return ""
-}
-
-func outputResults(violations []model.Violation) (bool, error) {
+func outputResults(violations []model.Violation) error {
 	if len(violations) == 0 {
-		return false, nil
+		return nil
 	}
 
 	switch *format {
 	case "json":
 		data, err := json.MarshalIndent(violations, "", "  ")
 		if err != nil {
-			return false, err
+			return err
 		}
 		fmt.Println(string(data))
 	case "sarif":
 		if err := output.WriteSARIF(os.Stdout, violations, version); err != nil {
-			return false, err
+			return err
 		}
 	default:
 		for _, v := range violations {
@@ -291,5 +260,5 @@ func outputResults(violations []model.Violation) (bool, error) {
 		}
 	}
 
-	return true, nil
+	return nil
 }

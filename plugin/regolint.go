@@ -5,23 +5,16 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
-	"os"
-	"path/filepath"
-	"strings"
+	"log"
 	"sync"
 
 	"github.com/burdzwastaken/regolint/internal/config"
 	"github.com/burdzwastaken/regolint/internal/evaluator"
+	"github.com/burdzwastaken/regolint/internal/model"
+	"github.com/burdzwastaken/regolint/internal/nolint"
 	"github.com/burdzwastaken/regolint/internal/transformer"
 	"github.com/golangci/plugin-module-register/register"
-	"github.com/mitchellh/mapstructure"
 	"golang.org/x/tools/go/analysis"
-)
-
-// Ensure imports are used
-var (
-	_ = filepath.Clean
-	_ = strings.TrimSpace
 )
 
 const (
@@ -34,12 +27,11 @@ func init() {
 }
 
 // Settings mirrors config options for golangci-lint integration.
-// nolint:TAG001 // uses mapstructure tags
 type Settings struct {
-	PolicyDir   string   `mapstructure:"policy-dir"`
-	PolicyFiles []string `mapstructure:"policy-files"`
-	Disabled    []string `mapstructure:"disabled"`
-	Exclude     []string `mapstructure:"exclude"`
+	PolicyDir   string   `json:"policy-dir"`
+	PolicyFiles []string `json:"policy-files"`
+	Disabled    []string `json:"disabled"`
+	Exclude     []string `json:"exclude"`
 }
 
 // RegolintPlugin implements register.LinterPlugin.
@@ -47,13 +39,11 @@ type RegolintPlugin struct {
 	settings Settings
 }
 
-// New creates a new regolint plugin instance.
+// New creates a new regolint plugin instance with validated settings.
 func New(settings any) (register.LinterPlugin, error) {
-	var s Settings
-	if settings != nil {
-		if err := mapstructure.Decode(settings, &s); err != nil {
-			return nil, fmt.Errorf("decoding settings: %w", err)
-		}
+	s, err := register.DecodeSettings[Settings](settings)
+	if err != nil {
+		return nil, fmt.Errorf("decoding settings: %w", err)
 	}
 	return &RegolintPlugin{settings: s}, nil
 }
@@ -81,6 +71,7 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				}
 
 				if len(policies) == 0 {
+					log.Printf("[regolint] warning: no policies found in %s", cfg.Policies.Directory)
 					return
 				}
 
@@ -95,7 +86,8 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				return nil, nil
 			}
 
-			modulePath := findModulePath(pass)
+			// Use pass.Pkg.Path() directly - the standard approach for linters
+			modulePath := pass.Pkg.Path()
 			trans := transformer.New(pass, modulePath)
 
 			for _, file := range pass.Files {
@@ -112,11 +104,16 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 					return nil, fmt.Errorf("evaluating %s: %w", filePath, err)
 				}
 
+				var filtered []model.Violation
 				for _, v := range violations {
-					if cfg.IsRuleDisabled(v.Rule) {
-						continue
+					if !cfg.IsRuleDisabled(v.Rule) {
+						filtered = append(filtered, v)
 					}
+				}
 
+				filtered = nolint.FilterModelViolations(filtered, codeCtx.Nolints)
+
+				for _, v := range filtered {
 					pos := findPosition(pass, file, v.Position.Line)
 					pass.Reportf(pos, "[%s] %s", v.Rule, v.Message)
 				}
@@ -136,8 +133,6 @@ func (p *RegolintPlugin) GetLoadMode() string {
 
 func (p *RegolintPlugin) buildConfig() *config.Config {
 	cfg := config.Default()
-
-	// default excludes...golangci-lint handles file filtering
 	cfg.Exclude = nil
 
 	if p.settings.PolicyDir != "" {
@@ -157,29 +152,6 @@ func (p *RegolintPlugin) buildConfig() *config.Config {
 	}
 
 	return cfg
-}
-
-func findModulePath(pass *analysis.Pass) string {
-	pkgPath := pass.Pkg.Path()
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return pkgPath
-	}
-
-	modFile := filepath.Clean(filepath.Join(cwd, "go.mod"))
-	content, err := os.ReadFile(modFile)
-	if err != nil {
-		return pkgPath
-	}
-
-	for line := range strings.SplitSeq(string(content), "\n") {
-		if mod, ok := strings.CutPrefix(line, "module "); ok {
-			return strings.TrimSpace(mod)
-		}
-	}
-
-	return pkgPath
 }
 
 func findPosition(pass *analysis.Pass, file *ast.File, line int) token.Pos {

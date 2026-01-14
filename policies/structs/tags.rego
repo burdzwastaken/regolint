@@ -18,7 +18,8 @@ deny contains violation if {
 	not field.is_embedded
 
 	some tag in required_tags
-	not contains(field.tags, concat("", [tag, ":"]))
+	field_tags := object.get(field, "tags", "")
+	not contains(field_tags, concat("", [tag, ":"]))
 
 	violation := {
 		"message": sprintf("Exported field '%s.%s' missing required '%s' tag", [t.name, field.name, tag]),

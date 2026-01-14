@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/burdzwastaken/regolint/internal/model"
 )
 
 // Directive represents a nolint directive on a specific line.
@@ -135,4 +137,43 @@ func isSuppressed(v Violation, lineMap map[int][]Directive, allDirectives []Dire
 	}
 
 	return false
+}
+
+type modelViolationAdapter struct {
+	v model.Violation
+}
+
+func (a modelViolationAdapter) GetRule() string { return a.v.Rule }
+func (a modelViolationAdapter) GetLine() int    { return a.v.Position.Line }
+
+// FilterModelViolations filters model.Violation slice using nolint directives.
+func FilterModelViolations(violations []model.Violation, nolints []model.NolintDirective) []model.Violation {
+	if len(nolints) == 0 {
+		return violations
+	}
+
+	directives := make([]Directive, len(nolints))
+	for i, n := range nolints {
+		directives[i] = Directive{
+			Line:    n.Line,
+			EndLine: n.EndLine,
+			Rules:   n.Rules,
+			Reason:  n.Reason,
+		}
+	}
+
+	ifaces := make([]Violation, len(violations))
+	for i, v := range violations {
+		ifaces[i] = modelViolationAdapter{v}
+	}
+
+	filtered := Filter(ifaces, directives)
+
+	result := make([]model.Violation, 0, len(filtered))
+	for _, f := range filtered {
+		if va, ok := f.(modelViolationAdapter); ok {
+			result = append(result, va.v)
+		}
+	}
+	return result
 }
