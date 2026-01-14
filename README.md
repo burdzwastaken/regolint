@@ -4,7 +4,7 @@
 [![Release](https://img.shields.io/github/v/release/burdzwastaken/regolint)](https://github.com/burdzwastaken/regolint/releases/latest)
 [![License](https://img.shields.io/github/license/burdzwastaken/regolint)](LICENSE)
 
-Policy-as-code for Go. Write lint rules in Rego, not Go.
+Rego powered linting for Go.
 
 ## Description
 
