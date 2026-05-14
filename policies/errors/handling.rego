@@ -1,7 +1,7 @@
 package regolint.rules.errors.handling
 
 metadata := {
-	"id": "ERR001",
+	"id": "wrapcheck",
 	"severity": "warning",
 	"description": "Checks for proper error handling patterns",
 }

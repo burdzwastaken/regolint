@@ -35,11 +35,11 @@ func (t *Transformer) extractType(spec *ast.TypeSpec, doc *ast.CommentGroup) mod
 
 func (t *Transformer) extractStructFields(st *ast.StructType) ([]model.FieldInfo, []string) {
 	if st.Fields == nil {
-		return nil, nil
+		return []model.FieldInfo{}, []string{}
 	}
 
-	fields := make([]model.FieldInfo, 0)
-	embeds := make([]string, 0)
+	fields := make([]model.FieldInfo, 0, len(st.Fields.List))
+	embeds := make([]string, 0, len(st.Fields.List))
 
 	for _, field := range st.Fields.List {
 		typeStr := t.formatType(field.Type)
@@ -72,11 +72,11 @@ func (t *Transformer) extractStructFields(st *ast.StructType) ([]model.FieldInfo
 
 func (t *Transformer) extractInterfaceMethods(iface *ast.InterfaceType) ([]model.MethodInfo, []string) {
 	if iface.Methods == nil {
-		return nil, nil
+		return []model.MethodInfo{}, []string{}
 	}
 
-	methods := make([]model.MethodInfo, 0)
-	embeds := make([]string, 0)
+	methods := make([]model.MethodInfo, 0, len(iface.Methods.List))
+	embeds := make([]string, 0, len(iface.Methods.List))
 
 	for _, field := range iface.Methods.List {
 		if len(field.Names) == 0 {

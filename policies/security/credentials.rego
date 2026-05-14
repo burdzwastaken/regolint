@@ -1,7 +1,7 @@
 package regolint.rules.security.credentials
 
 metadata := {
-	"id": "SEC001",
+	"id": "hardcodedcreds",
 	"severity": "error",
 	"description": "Prevents hardcoded credentials",
 }

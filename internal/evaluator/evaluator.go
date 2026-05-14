@@ -12,10 +12,19 @@ import (
 )
 
 // dangerousBuiltins lists Rego built-ins disabled for security.
+// nolint:gochecknoglobals
 var dangerousBuiltins = map[string]bool{
 	"http.send":          true,
 	"net.lookup_ip_addr": true,
 	"opa.runtime":        true,
+}
+
+var errInvalidViolationFormat = errors.New("invalid violation format") // nolint:gochecknoglobals
+
+// Evaluator wraps OPA and manages policy lifecycle.
+type Evaluator struct {
+	compiler *ast.Compiler
+	query    rego.PreparedEvalQuery
 }
 
 func filteredCapabilities() *ast.Capabilities {
@@ -31,12 +40,6 @@ func filteredCapabilities() *ast.Capabilities {
 	}
 	caps.Builtins = filtered
 	return caps
-}
-
-// Evaluator wraps OPA and manages policy lifecycle.
-type Evaluator struct {
-	compiler *ast.Compiler
-	query    rego.PreparedEvalQuery
 }
 
 // New creates a new Evaluator with the given policies.
@@ -142,7 +145,7 @@ func extractFromValue(v any) []model.Violation {
 func parseViolation(v any) (model.Violation, error) {
 	m, ok := v.(map[string]any)
 	if !ok {
-		return model.Violation{}, errors.New("invalid violation format")
+		return model.Violation{}, errInvalidViolationFormat
 	}
 
 	violation := model.Violation{}

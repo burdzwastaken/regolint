@@ -1,7 +1,7 @@
 package regolint.rules.imports.banned
 
 metadata := {
-	"id": "IMP001",
+	"id": "depguard",
 	"severity": "error",
 	"description": "Prevents use of banned packages",
 }

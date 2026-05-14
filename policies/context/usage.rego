@@ -1,7 +1,6 @@
 package regolint.rules.context.usage
 
 metadata := {
-	"id": "CTX001",
 	"severity": "warning",
 	"description": "Checks for proper context.Context usage",
 }
@@ -18,7 +17,7 @@ deny contains violation if {
 	violation := {
 		"message": sprintf("Function '%s' should name context parameter 'ctx', not '%s'", [fn.name, first_param.name]),
 		"position": fn.position,
-		"rule": metadata.id,
+		"rule": "contextname",
 		"severity": metadata.severity,
 	}
 }
@@ -36,7 +35,7 @@ deny contains violation if {
 	violation := {
 		"message": sprintf("Function '%s' should have context.Context as first parameter", [fn.name]),
 		"position": fn.position,
-		"rule": metadata.id,
+		"rule": "contextcheck",
 		"severity": metadata.severity,
 	}
 }

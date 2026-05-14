@@ -1,7 +1,7 @@
 package regolint.rules.structs.tags
 
 metadata := {
-	"id": "TAG001",
+	"id": "musttag",
 	"severity": "warning",
 	"description": "Ensures exported struct fields have required tags",
 }

@@ -10,6 +10,10 @@ import (
 	"github.com/burdzwastaken/regolint/internal/model"
 )
 
+// nolintPattern matches // nolint or // nolint:rule-one,rule/two with optional reason.
+// nolint:gochecknoglobals
+var nolintPattern = regexp.MustCompile(`^//\s*nolint(?::([A-Za-z0-9_./,-]+))?(?:\s+//\s*(.+))?$`)
+
 // Directive represents a nolint directive on a specific line.
 type Directive struct {
 	Line    int      `json:"line"`
@@ -18,16 +22,26 @@ type Directive struct {
 	Reason  string   `json:"reason,omitempty"`
 }
 
+// Violation interface for filtering - matches model.Violation shape.
+type Violation interface {
+	GetRule() string
+	GetLine() int
+}
+
+type modelViolationAdapter struct {
+	v model.Violation
+}
+
 // Match returns true if this directive applies to the given rule.
 func (d Directive) Match(rule string) bool {
 	if len(d.Rules) == 0 {
-		return true // empty rules matches all
+		if rule == "nolintlint" {
+			return false
+		}
+		return true // Empty rules match all.
 	}
 	return slices.Contains(d.Rules, rule)
 }
-
-// nolintPattern matches // nolint or // nolint:RULE1,RULE2 with optional reason.
-var nolintPattern = regexp.MustCompile(`//\s*nolint(?::([A-Za-z0-9_,]+))?(?:\s+//\s*(.+))?`)
 
 // Extract parses all nolint directives from a file's comments.
 func Extract(fset *token.FileSet, file *ast.File) []Directive {
@@ -107,12 +121,6 @@ func Filter(violations []Violation, directives []Directive) []Violation {
 	return filtered
 }
 
-// Violation interface for filtering - matches model.Violation shape.
-type Violation interface {
-	GetRule() string
-	GetLine() int
-}
-
 func isSuppressed(v Violation, lineMap map[int][]Directive, allDirectives []Directive) bool {
 	line := v.GetLine()
 
@@ -137,10 +145,6 @@ func isSuppressed(v Violation, lineMap map[int][]Directive, allDirectives []Dire
 	}
 
 	return false
-}
-
-type modelViolationAdapter struct {
-	v model.Violation
 }
 
 func (a modelViolationAdapter) GetRule() string { return a.v.Rule }

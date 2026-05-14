@@ -1,20 +1,13 @@
 package regolint.rules.package.documentation
 
 metadata := {
-	"id": "PKG001",
+	"id": "doccheck",
 	"severity": "warning",
 	"description": "Checks that exported types have documentation",
 }
 
-# Support both file context (types) and package context (all_types)
-types_to_check := input.all_types if input.all_types
-types_to_check := input.types if not input.all_types
-
-functions_to_check := input.all_functions if input.all_functions
-functions_to_check := input.functions if not input.all_functions
-
 deny contains violation if {
-	some t in types_to_check
+	some t in input.all_types
 	t.is_exported
 	t.doc == ""
 
@@ -28,7 +21,7 @@ deny contains violation if {
 }
 
 deny contains violation if {
-	some fn in functions_to_check
+	some fn in input.all_functions
 	fn.is_exported
 	not fn.is_test
 	count(fn.comments) == 0

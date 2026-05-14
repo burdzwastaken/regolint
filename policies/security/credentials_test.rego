@@ -8,6 +8,7 @@ test_detects_password_constant if {
 		"variables": [],
 	}
 	count(violations) == 1
+	violations[_].rule == "hardcodedcreds"
 }
 
 test_detects_api_key_constant if {

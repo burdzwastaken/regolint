@@ -17,6 +17,7 @@ test_detects_empty_tags if {
 		"position": {"line": 4},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "musttag"
 }
 
 test_detects_missing_tags_field if {

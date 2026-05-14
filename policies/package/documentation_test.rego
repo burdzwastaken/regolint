@@ -13,6 +13,7 @@ test_detects_undocumented_exported_type if {
 		"all_functions": [],
 	}
 	count(violations) == 1
+	violations[_].rule == "doccheck"
 }
 
 test_allows_documented_exported_type if {
@@ -53,6 +54,7 @@ test_detects_undocumented_exported_function if {
 		}],
 	}
 	count(violations) == 1
+	violations[_].rule == "doccheck"
 }
 
 test_allows_documented_exported_function if {

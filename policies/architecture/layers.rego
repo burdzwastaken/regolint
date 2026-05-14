@@ -1,7 +1,7 @@
 package regolint.rules.architecture.layers
 
 metadata := {
-	"id": "ARCH001",
+	"id": "archlayers",
 	"severity": "error",
 	"description": "Enforces clean architecture layer dependencies",
 }

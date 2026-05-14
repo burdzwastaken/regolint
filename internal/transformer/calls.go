@@ -10,10 +10,19 @@ func (t *Transformer) extractCalls(fn *ast.FuncDecl, funcName string) []model.Ca
 	if fn.Body == nil {
 		return nil
 	}
+	return t.extractCallsFromNode(fn.Body, funcName, false)
+}
 
+func (t *Transformer) extractCallsFromNode(node ast.Node, funcName string, inFuncLit bool) []model.CallInfo {
 	calls := make([]model.CallInfo, 0)
 
-	ast.Inspect(fn.Body, func(n ast.Node) bool {
+	ast.Inspect(node, func(n ast.Node) bool {
+		funcLit, ok := n.(*ast.FuncLit)
+		if ok {
+			calls = append(calls, t.extractCallsFromNode(funcLit.Body, funcName, true)...)
+			return false
+		}
+
 		callExpr, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -21,6 +30,7 @@ func (t *Transformer) extractCalls(fn *ast.FuncDecl, funcName string) []model.Ca
 
 		call := model.CallInfo{
 			InFunction: funcName,
+			InFuncLit:  inFuncLit,
 			Position:   t.position(callExpr.Pos()),
 			Args:       t.extractCallArgs(callExpr),
 		}
@@ -62,6 +72,7 @@ func (t *Transformer) extractCallArgs(call *ast.CallExpr) []string {
 	return args
 }
 
+// nolint:gocyclo
 func (t *Transformer) formatExpr(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
@@ -76,6 +87,8 @@ func (t *Transformer) formatExpr(expr ast.Expr) string {
 		return e.Op.String() + t.formatExpr(e.X)
 	case *ast.BinaryExpr:
 		return t.formatExpr(e.X) + " " + e.Op.String() + " " + t.formatExpr(e.Y)
+	case *ast.ArrayType:
+		return t.formatType(e)
 	case *ast.CompositeLit:
 		return t.formatType(e.Type) + "{...}"
 	case *ast.FuncLit:

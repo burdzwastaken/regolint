@@ -94,20 +94,20 @@ func TestIsRuleDisabled(t *testing.T) {
 	}{
 		{
 			name:     "rule disabled",
-			disabled: []string{"SEC001", "NAME001"},
-			rule:     "SEC001",
+			disabled: []string{"hardcodedcreds", "interfacenaming"},
+			rule:     "hardcodedcreds",
 			want:     true,
 		},
 		{
 			name:     "rule not disabled",
-			disabled: []string{"SEC001", "NAME001"},
-			rule:     "TAG001",
+			disabled: []string{"hardcodedcreds", "interfacenaming"},
+			rule:     "musttag",
 			want:     false,
 		},
 		{
 			name:     "empty disabled list",
 			disabled: []string{},
-			rule:     "SEC001",
+			rule:     "hardcodedcreds",
 			want:     false,
 		},
 	}

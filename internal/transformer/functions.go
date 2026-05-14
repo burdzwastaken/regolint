@@ -35,6 +35,8 @@ func (t *Transformer) extractFunction(fn *ast.FuncDecl) model.FunctionInfo {
 		endLine := t.fset.Position(fn.Body.Rbrace).Line
 		info.LineCount = endLine - startLine + 1
 		info.Complexity = t.calculateComplexity(fn.Body)
+		info.MaxIfDepth = maxIfDepth(fn.Body)
+		info.HasNakedRet = hasNakedReturn(fn.Body)
 	}
 
 	if fn.Doc != nil {
@@ -46,8 +48,190 @@ func (t *Transformer) extractFunction(fn *ast.FuncDecl) model.FunctionInfo {
 	return info
 }
 
+func hasNakedReturn(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if _, ok := n.(*ast.FuncLit); ok {
+			return false
+		}
+		ret, ok := n.(*ast.ReturnStmt)
+		if !ok {
+			return true
+		}
+		found = len(ret.Results) == 0
+		return !found
+	})
+	return found
+}
+
+func (t *Transformer) extractReturns(body *ast.BlockStmt, funcName string, receiver string) []model.ReturnInfo {
+	if body == nil {
+		return nil
+	}
+
+	returns := make([]model.ReturnInfo, 0, len(body.List))
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch current := n.(type) {
+		case nil:
+			return true
+		case *ast.FuncLit:
+			return false
+		case *ast.ReturnStmt:
+			info := model.ReturnInfo{
+				Function: funcName,
+				Receiver: receiver,
+				Results:  make([]string, 0, len(current.Results)),
+				IsNaked:  len(current.Results) == 0,
+				Position: t.position(current.Pos()),
+			}
+			for _, result := range current.Results {
+				info.Results = append(info.Results, t.formatExpr(result))
+			}
+			returns = append(returns, info)
+		}
+		return true
+	})
+
+	return returns
+}
+
+func (t *Transformer) extractIfs(body *ast.BlockStmt, funcName string, receiver string) []model.IfInfo {
+	if body == nil {
+		return nil
+	}
+
+	ifs := make([]model.IfInfo, 0)
+	ast.Inspect(body, func(n ast.Node) bool {
+		switch current := n.(type) {
+		case nil:
+			return true
+		case *ast.FuncLit:
+			return false
+		case *ast.IfStmt:
+			errorVar, isErrNotNil := errNotNilVar(current.Cond)
+			info := model.IfInfo{
+				Function:    funcName,
+				Receiver:    receiver,
+				Condition:   t.formatExpr(current.Cond),
+				ErrorVar:    errorVar,
+				IsErrNotNil: isErrNotNil,
+				Returns:     t.directReturns(current.Body, funcName, receiver),
+				Position:    t.position(current.Pos()),
+			}
+			ifs = append(ifs, info)
+		}
+		return true
+	})
+
+	return ifs
+}
+
+func (t *Transformer) directReturns(body *ast.BlockStmt, funcName string, receiver string) []model.ReturnInfo {
+	if body == nil {
+		return nil
+	}
+
+	returns := make([]model.ReturnInfo, 0, len(body.List))
+	for _, stmt := range body.List {
+		ret, ok := stmt.(*ast.ReturnStmt)
+		if !ok {
+			continue
+		}
+
+		info := model.ReturnInfo{
+			Function: funcName,
+			Receiver: receiver,
+			Results:  make([]string, 0, len(ret.Results)),
+			IsNaked:  len(ret.Results) == 0,
+			Position: t.position(ret.Pos()),
+		}
+		for _, result := range ret.Results {
+			info.Results = append(info.Results, t.formatExpr(result))
+		}
+		returns = append(returns, info)
+	}
+
+	return returns
+}
+
+func errNotNilVar(expr ast.Expr) (string, bool) {
+	switch current := expr.(type) {
+	case *ast.ParenExpr:
+		return errNotNilVar(current.X)
+	case *ast.BinaryExpr:
+		if current.Op == token.NEQ {
+			if name, ok := identComparedToNil(current.X, current.Y); ok {
+				return name, errorLikeName(name)
+			}
+			if name, ok := identComparedToNil(current.Y, current.X); ok {
+				return name, errorLikeName(name)
+			}
+		}
+		if current.Op == token.LAND {
+			if name, ok := errNotNilVar(current.X); ok {
+				return name, true
+			}
+			return errNotNilVar(current.Y)
+		}
+	}
+
+	return "", false
+}
+
+func identComparedToNil(left ast.Expr, right ast.Expr) (string, bool) {
+	ident, ok := left.(*ast.Ident)
+	if !ok || ident.Name == "nil" {
+		return "", false
+	}
+
+	rightIdent, ok := right.(*ast.Ident)
+	if !ok || rightIdent.Name != "nil" {
+		return "", false
+	}
+
+	return ident.Name, true
+}
+
+func errorLikeName(name string) bool {
+	lowerName := strings.ToLower(name)
+	return lowerName == "err" ||
+		lowerName == "error" ||
+		strings.HasPrefix(lowerName, "err") ||
+		strings.HasSuffix(lowerName, "err")
+}
+
+func maxIfDepth(body *ast.BlockStmt) int {
+	var walk func(ast.Node, int) int
+	walk = func(node ast.Node, depth int) int {
+		maxDepth := depth
+		ast.Inspect(node, func(n ast.Node) bool {
+			switch current := n.(type) {
+			case nil:
+				return true
+			case *ast.FuncLit:
+				return false
+			case *ast.IfStmt:
+				currentDepth := depth + 1
+				maxDepth = max(maxDepth, currentDepth)
+				maxDepth = max(maxDepth, walk(current.Body, currentDepth))
+				if current.Else != nil {
+					maxDepth = max(maxDepth, walk(current.Else, currentDepth))
+				}
+				return false
+			}
+			return true
+		})
+		return maxDepth
+	}
+
+	return walk(body, 0)
+}
+
 func (t *Transformer) extractParams(fields *ast.FieldList) []model.ParameterInfo {
-	params := make([]model.ParameterInfo, 0)
+	params := make([]model.ParameterInfo, 0, len(fields.List))
 
 	for _, field := range fields.List {
 		typeStr := t.formatType(field.Type)
@@ -71,6 +255,7 @@ func (t *Transformer) formatReceiver(field *ast.Field) string {
 	return t.formatType(field.Type)
 }
 
+// nolint:gocyclo
 func (t *Transformer) formatType(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.Ident:
@@ -79,6 +264,10 @@ func (t *Transformer) formatType(expr ast.Expr) string {
 		return "*" + t.formatType(e.X)
 	case *ast.SelectorExpr:
 		return t.formatType(e.X) + "." + e.Sel.Name
+	case *ast.IndexExpr:
+		return t.formatType(e.X) + "[...]"
+	case *ast.IndexListExpr:
+		return t.formatType(e.X) + "[...]"
 	case *ast.ArrayType:
 		if e.Len == nil {
 			return "[]" + t.formatType(e.Elt)

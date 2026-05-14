@@ -10,6 +10,7 @@ test_detects_high_complexity if {
 		"position": {"line": 10},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "gocyclo"
 }
 
 test_allows_normal_complexity if {
@@ -30,6 +31,7 @@ test_detects_long_function if {
 		"position": {"line": 10},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "funlen"
 }
 
 test_detects_both_issues if {

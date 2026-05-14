@@ -14,6 +14,7 @@ test_detects_repository_without_suffix if {
 		"position": {"line": 10},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "interfacenaming"
 }
 
 test_allows_repository_with_suffix if {

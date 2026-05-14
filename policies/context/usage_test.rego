@@ -19,6 +19,7 @@ test_detects_wrong_context_name if {
 		"position": {"line": 10},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "contextname"
 }
 
 test_detects_context_not_first if {
@@ -32,6 +33,7 @@ test_detects_context_not_first if {
 		"position": {"line": 10},
 	}]}
 	count(violations) == 1
+	violations[_].rule == "contextcheck"
 }
 
 test_allows_no_context if {

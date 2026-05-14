@@ -9,6 +9,7 @@ test_domain_cannot_import_application if {
 		"imports": [{"path": "github.com/example/app/application", "position": {"line": 5}}],
 	}
 	count(violations) == 1
+	violations[_].rule == "archlayers"
 }
 
 test_domain_cannot_import_infrastructure if {

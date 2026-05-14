@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const maxPolicySize = 10 * 1024 * 1024
+
 // FetchRemotePolicies downloads policies from configured remote URLs.
 func (c *Config) FetchRemotePolicies() (map[string]string, error) {
 	policies := make(map[string]string)
@@ -81,8 +83,6 @@ func safeDialContext(ctx context.Context, network, addr string) (net.Conn, error
 	}
 	return nil, fmt.Errorf("failed to connect to %s: %w", host, lastErr)
 }
-
-const maxPolicySize = 10 * 1024 * 1024
 
 func fetchPolicy(client *http.Client, remote RemotePolicy) (string, error) {
 	u, err := url.Parse(remote.URL)

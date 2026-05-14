@@ -5,6 +5,7 @@ import data.regolint.rules.imports.banned
 test_detects_unsafe_import if {
 	violations := banned.deny with input as {"imports": [{"path": "unsafe", "position": {"line": 5, "column": 2}}]}
 	count(violations) == 1
+	violations[_].rule == "depguard"
 }
 
 test_allows_safe_imports if {

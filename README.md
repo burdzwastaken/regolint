@@ -60,7 +60,7 @@ version: v2.8.0
 plugins:
   - module: 'github.com/burdzwastaken/regolint'
     import: 'github.com/burdzwastaken/regolint/plugin'
-    version: v1.0.7
+    version: v1.1.0
 ```
 
 Build the custom binary:
@@ -84,7 +84,7 @@ linters:
           policy-files:
             - ./extra/security.rego
           disabled:
-            - TAG001
+            - musttag
           exclude:
             - "**/vendor/**"
             - "**/*_test.go"
@@ -104,7 +104,7 @@ Policies use [Rego v1 syntax](https://www.openpolicyagent.org/docs/latest/policy
 package regolint.rules.imports.banned
 
 metadata := {
-    "id": "IMP001",
+    "id": "depguard",
     "severity": "error",
     "description": "Prevents use of banned packages",
 }
@@ -127,19 +127,37 @@ deny contains violation if {
 
 Policies receive a `CodeContext` as input with the following structure:
 
-| Field           | Type   | Description                                  |
-|-----------------|--------|----------------------------------------------|
-| `file_path`     | string | Absolute path to the source file             |
-| `module_path`   | string | Go module path                               |
-| `package`       | object | Package name, path and doc                   |
-| `imports`       | array  | Import declarations                          |
-| `functions`     | array  | Function and method declarations             |
-| `types`         | array  | Type declarations (struct, interface, alias) |
-| `variables`     | array  | Package-level variables                      |
-| `constants`     | array  | Constants                                    |
-| `calls`         | array  | Function and method calls                    |
-| `type_usages`   | array  | References to types                          |
-| `field_accesses`| array  | Field access expressions                     |
+| Field               | Type   | Description                                  |
+|---------------------|--------|----------------------------------------------|
+| `file_path`         | string | Absolute path to the source file             |
+| `module_path`       | string | Go module path                               |
+| `package`           | object | Package name, path and doc                   |
+| `imports`           | array  | Import declarations                          |
+| `functions`         | array  | Function and method declarations             |
+| `types`             | array  | Type declarations (struct, interface, alias) |
+| `variables`         | array  | Package-level variables                      |
+| `constants`         | array  | Constants                                    |
+| `lines`             | array  | Source line metadata                         |
+| `comments`          | array  | Source comments                              |
+| `literals`          | array  | Literal expressions                          |
+| `returns`           | array  | Return statements                            |
+| `ifs`               | array  | If statements and direct returns             |
+| `type_assertions`   | array  | Type assertion expressions                   |
+| `make_slices`       | array  | Slice make expressions assigned to targets   |
+| `appends`           | array  | Append calls assigned to targets             |
+| `resource_acquires` | array  | Resource-producing assignments               |
+| `resource_closes`   | array  | Resource close calls                         |
+| `resource_errs`     | array  | Resource error-check calls                   |
+| `subtests`          | array  | Subtest callback metadata                    |
+| `range_loops`       | array  | Range loop metadata                          |
+| `loop_var_copies`   | array  | Redundant range loop variable copies         |
+| `blank_assignments` | array  | Assignments containing blank identifiers     |
+| `decl_groups`       | array  | Top-level declaration groups                 |
+| `declarations`      | array  | Top-level declarations in source order       |
+| `calls`             | array  | Function and method calls                    |
+| `type_usages`       | array  | References to types                          |
+| `field_accesses`    | array  | Field access expressions                     |
+| `nolints`           | array  | nolint suppression directives                |
 
 ### Type Reference
 
@@ -153,19 +171,21 @@ Policies receive a `CodeContext` as input with the following structure:
 
 #### FunctionInfo (`input.functions[]`)
 
-| Field         | Type    | Description                                |
-|---------------|---------|--------------------------------------------|
-| `name`        | string  | Function name                              |
-| `receiver`    | string  | Receiver type for methods (e.g., `"*Foo"`) |
-| `parameters`  | array   | Parameters (`name`, `type`)                |
-| `returns`     | array   | Return values (`name`, `type`)             |
-| `is_exported` | boolean | Whether function is exported               |
-| `is_test`     | boolean | Whether function is a test                 |
-| `complexity`  | integer | Cyclomatic complexity                      |
-| `line_count`  | integer | Number of lines in function body           |
-| `position`    | object  | Source location                            |
-| `comments`    | array   | Doc comments                               |
-| `annotations` | object  | Parsed annotations from comments           |
+| Field           | Type    | Description                                |
+|-----------------|---------|--------------------------------------------|
+| `name`          | string  | Function name                              |
+| `receiver`      | string  | Receiver type for methods (e.g., `"*Foo"`) |
+| `parameters`    | array   | Parameters (`name`, `type`)                |
+| `returns`       | array   | Return values (`name`, `type`)             |
+| `is_exported`   | boolean | Whether function is exported               |
+| `is_test`       | boolean | Whether function is a test                 |
+| `has_naked_ret` | boolean | Whether function has a naked return        |
+| `complexity`    | integer | Cyclomatic complexity                      |
+| `max_if_depth`  | integer | Maximum nested if depth                    |
+| `line_count`    | integer | Number of lines in function body           |
+| `position`      | object  | Source location                            |
+| `comments`      | array   | Doc comments                               |
+| `annotations`   | object  | Parsed annotations from comments           |
 
 #### TypeInfo (`input.types[]`)
 
@@ -181,16 +201,183 @@ Policies receive a `CodeContext` as input with the following structure:
 | `position`    | object  | Source location                                |
 | `doc`         | string  | Doc comment                                    |
 
+#### CommentInfo (`input.comments[]`)
+
+| Field           | Type    | Description                                 |
+|-----------------|---------|---------------------------------------------|
+| `text`          | string  | Comment text without comment markers        |
+| `raw`           | string  | Raw source comment text                     |
+| `is_first_line` | boolean | Whether this is the first line of a comment |
+| `position`      | object  | Source location (`file`, `line`, `column`)  |
+
+#### LineInfo (`input.lines[]`)
+
+| Field      | Type    | Description                                |
+|------------|---------|--------------------------------------------|
+| `number`   | integer | Source line number                         |
+| `length`   | integer | Source line length in bytes                |
+| `position` | object  | Source location (`file`, `line`, `column`) |
+
+#### LiteralInfo (`input.literals[]`)
+
+| Field         | Type   | Description                                               |
+|---------------|--------|-----------------------------------------------------------|
+| `kind`        | string | Literal kind (`int`, `float`, `imag`, `char`, `string`)   |
+| `value`       | string | Literal source text                                       |
+| `in_function` | string | Function containing this literal                          |
+| `position`    | object | Source location (`file`, `line`, `column`)                |
+
+#### ReturnInfo (`input.returns[]`)
+
+| Field      | Type    | Description                                      |
+|------------|---------|--------------------------------------------------|
+| `function` | string  | Function containing this return statement        |
+| `receiver` | string  | Receiver type for method returns                 |
+| `results`  | array   | Return result expressions as strings             |
+| `is_naked` | boolean | Whether this is a bare return statement          |
+| `position` | object  | Source location (`file`, `line`, `column`)       |
+
+#### IfInfo (`input.ifs[]`)
+
+| Field            | Type    | Description                                      |
+|------------------|---------|--------------------------------------------------|
+| `function`       | string  | Function containing this if statement            |
+| `receiver`       | string  | Receiver type for method if statements           |
+| `condition`      | string  | If condition expression as a string              |
+| `error_var`      | string  | Error variable name from `err != nil` conditions |
+| `is_err_not_nil` | boolean | Whether condition contains `<ident> != nil`      |
+| `returns`        | array   | Direct return statements in the if body          |
+| `position`       | object  | Source location (`file`, `line`, `column`)       |
+
+#### TypeAssertInfo (`input.type_assertions[]`)
+
+| Field            | Type    | Description                                |
+|------------------|---------|--------------------------------------------|
+| `expr`           | string  | Asserted expression                        |
+| `asserted_type`  | string  | Target type of the assertion               |
+| `in_function`    | string  | Function containing this assertion         |
+| `context`        | string  | Usage context (`assign`, `return`, etc.)   |
+| `is_comma_ok`    | boolean | Whether assertion uses comma-ok form       |
+| `assignment_tok` | string  | Assignment token if in assignment context  |
+| `value_target`   | string  | Value target name for comma-ok assertions  |
+| `ok_target`      | string  | ok target name for comma-ok assertions     |
+| `position`       | object  | Source location (`file`, `line`, `column`) |
+
+#### MakeSliceInfo (`input.make_slices[]`)
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| `target`      | string  | Assignment target receiving the slice      |
+| `len_arg`     | string  | Length argument passed to `make`           |
+| `cap_arg`     | string  | Capacity argument passed to `make`         |
+| `has_cap`     | boolean | Whether a capacity argument was provided   |
+| `in_function` | string  | Function containing this expression        |
+| `position`    | object  | Source location (`file`, `line`, `column`) |
+
+#### AppendInfo (`input.appends[]`)
+
+| Field         | Type   | Description                                |
+|---------------|--------|--------------------------------------------|
+| `target`      | string | Assignment target receiving append result  |
+| `source`      | string | First argument passed to `append`          |
+| `in_function` | string | Function containing this append call       |
+| `position`    | object | Source location (`file`, `line`, `column`) |
+
+#### ResourceInfo (`input.resource_acquires[]`)
+
+| Field         | Type   | Description                                             |
+|---------------|--------|---------------------------------------------------------|
+| `kind`        | string | Resource kind (`http_response`, `sql_rows`, `sql_stmt`) |
+| `target`      | string | Assignment target receiving the resource                |
+| `source`      | string | Producing call expression                               |
+| `in_function` | string | Function containing this acquisition                    |
+| `position`    | object | Source location (`file`, `line`, `column`)              |
+
+#### ResourceClose (`input.resource_closes[]`)
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| `target`      | string  | Closed resource expression                 |
+| `is_defer`    | boolean | Whether the close call is deferred         |
+| `in_function` | string  | Function containing this close call        |
+| `position`    | object  | Source location (`file`, `line`, `column`) |
+
+#### ResourceErr (`input.resource_errs[]`)
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| `target`      | string  | Resource whose `Err` method is called      |
+| `is_checked`  | boolean | Whether the error result is checked        |
+| `in_function` | string  | Function containing this error check       |
+| `position`    | object  | Source location (`file`, `line`, `column`) |
+
+#### SubtestInfo (`input.subtests[]`)
+
+| Field          | Type    | Description                                |
+|----------------|---------|--------------------------------------------|
+| `name`         | string  | Static subtest name when available         |
+| `function`     | string  | Parent test function name                  |
+| `test_param`   | string  | Subtest `*testing.T` parameter name        |
+| `has_parallel` | boolean | Whether subtest calls `t.Parallel()`       |
+| `position`     | object  | Source location (`file`, `line`, `column`) |
+
+#### RangeLoopInfo (`input.range_loops[]`)
+
+| Field         | Type    | Description                                |
+|---------------|---------|--------------------------------------------|
+| `key`         | string  | Range key variable name                    |
+| `value`       | string  | Range value variable name                  |
+| `source`      | string  | Ranged expression                          |
+| `in_function` | string  | Function containing this range loop        |
+| `end_line`    | integer | Last source line of this range loop body   |
+| `position`    | object  | Source location (`file`, `line`, `column`) |
+
+#### LoopVarCopyInfo (`input.loop_var_copies[]`)
+
+| Field         | Type   | Description                                |
+|---------------|--------|--------------------------------------------|
+| `variable`    | string | Copied range variable name                 |
+| `kind`        | string | Loop variable kind (`key` or `value`)      |
+| `in_function` | string | Function containing this copy              |
+| `position`    | object | Source location (`file`, `line`, `column`) |
+
+#### BlankAssignInfo (`input.blank_assignments[]`)
+
+| Field         | Type    | Description                                  |
+|---------------|---------|----------------------------------------------|
+| `blank_count` | integer | Number of blank identifiers on the left side |
+| `total_count` | integer | Total left-side expressions                  |
+| `in_function` | string  | Function containing this assignment          |
+| `position`    | object  | Source location (`file`, `line`, `column`)   |
+
+#### DeclGroupInfo (`input.decl_groups[]`)
+
+| Field        | Type    | Description                                         |
+|--------------|---------|-----------------------------------------------------|
+| `kind`       | string  | Declaration kind (`const`, `import`, `type`, `var`) |
+| `count`      | integer | Number of items in the declaration                  |
+| `is_grouped` | boolean | Whether the declaration uses grouped form           |
+| `block_id`   | integer | File-local declaration group identifier             |
+| `position`   | object  | Source location (`file`, `line`, `column`)          |
+
+#### DeclInfo (`input.declarations[]`)
+
+| Field      | Type   | Description                                                  |
+|------------|--------|--------------------------------------------------------------|
+| `kind`     | string | Declaration kind (`import`, `const`, `var`, `type`, `func`)  |
+| `name`     | string | Declaration name                                             |
+| `position` | object | Source location (`file`, `line`, `column`)                   |
+
 #### FieldInfo (`input.types[].fields[]`)
 
-| Field        | Type    | Description                              |
-|--------------|---------|------------------------------------------|
-| `name`       | string  | Field name                               |
-| `type`       | string  | Field type                               |
-| `tags`       | string  | Struct tags (e.g., `` `json:"foo"` ``)   |
-| `is_exported`| boolean | Whether field is exported                |
-| `is_embedded`| boolean | Whether field is an embedded type        |
-| `position`   | object  | Source location                          |
+| Field         | Type    | Description                            |
+|---------------|---------|----------------------------------------|
+| `name`        | string  | Field name                             |
+| `type`        | string  | Field type                             |
+| `tags`        | string  | Struct tags (e.g., `` `json:"foo"` ``) |
+| `is_exported` | boolean | Whether field is exported              |
+| `is_embedded` | boolean | Whether field is an embedded type      |
+| `position`    | object  | Source location                        |
 
 #### VariableInfo (`input.variables[]`, `input.constants[]`)
 
@@ -202,19 +389,31 @@ Policies receive a `CodeContext` as input with the following structure:
 | `is_const`    | boolean | Whether it's a constant                      |
 | `value`       | string  | Literal value if available                   |
 | `in_function` | string  | Containing function (empty if package-level) |
+| `block_id`    | integer | Declaration group identifier                 |
+| `uses_iota`   | boolean | Whether this const derives from `iota`       |
 | `position`    | object  | Source location                              |
+
+#### NolintDirective (`input.nolints[]`)
+
+| Field      | Type    | Description                                |
+|------------|---------|--------------------------------------------|
+| `line`     | integer | Directive line                             |
+| `end_line` | integer | Optional range end line                    |
+| `rules`    | array   | Suppressed rule IDs                        |
+| `reason`   | string  | Optional suppression reason                |
 
 #### CallInfo (`input.calls[]`)
 
-| Field          | Type   | Description                              |
-|----------------|--------|------------------------------------------|
-| `function`     | string | Called function name                     |
-| `package`      | string | Package of called function               |
-| `receiver`     | string | Receiver variable name for method calls  |
-| `receiver_type`| string | Receiver type for method calls           |
-| `args`         | array  | Argument expressions as strings          |
-| `in_function`  | string | Function containing this call            |
-| `position`     | object | Source location                          |
+| Field           | Type    | Description                                |
+|-----------------|---------|--------------------------------------------|
+| `function`      | string  | Called function name                       |
+| `package`       | string  | Package of called function                 |
+| `receiver`      | string  | Receiver variable name for method calls    |
+| `receiver_type` | string  | Receiver type for method calls             |
+| `args`          | array   | Argument expressions as strings            |
+| `in_function`   | string  | Function containing this call              |
+| `in_func_lit`   | boolean | Whether the call is inside a func literal  |
+| `position`      | object  | Source location                            |
 
 #### TypeUsageInfo (`input.type_usages[]`)
 
@@ -228,29 +427,46 @@ Policies receive a `CodeContext` as input with the following structure:
 
 #### FieldAccessInfo (`input.field_accesses[]`)
 
-| Field        | Type   | Description                              |
-|--------------|--------|------------------------------------------|
-| `field`      | string | Accessed field name                      |
-| `receiver`   | string | Receiver expression                      |
-| `type`       | string | Type of the receiver                     |
-| `in_function`| string | Function containing this access          |
-| `position`   | object | Source location                          |
+| Field         | Type   | Description                     |
+|---------------|--------|---------------------------------|
+| `field`       | string | Accessed field name             |
+| `receiver`    | string | Receiver expression             |
+| `type`        | string | Type of the receiver            |
+| `in_function` | string | Function containing this access |
+| `position`    | object | Source location                 |
 
 ### PackageContext Schema (Package-wide)
 
 For package-wide analysis, policies receive a `PackageContext`:
 
-| Field           | Type   | Description                            |
-|-----------------|--------|----------------------------------------|
-| `module_path`   | string | Go module path                         |
-| `package`       | object | Package name, path and doc             |
-| `files`         | array  | All CodeContext objects in the package |
-| `all_imports`   | array  | Deduplicated imports across all files  |
-| `all_functions` | array  | All functions across all files         |
-| `all_types`     | array  | All types across all files             |
-| `all_variables` | array  | All variables across all files         |
-| `all_constants` | array  | All constants across all files         |
-| `all_calls`     | array  | All calls across all files             |
+| Field                    | Type   | Description                                  |
+|--------------------------|--------|----------------------------------------------|
+| `module_path`            | string | Go module path                               |
+| `package`                | object | Package name, path and doc                   |
+| `files`                  | array  | All CodeContext objects in the package       |
+| `all_imports`            | array  | Deduplicated imports across all files        |
+| `all_functions`          | array  | All functions across all files               |
+| `all_types`              | array  | All types across all files                   |
+| `all_variables`          | array  | All variables across all files               |
+| `all_constants`          | array  | All constants across all files               |
+| `all_lines`              | array  | All source lines across all files            |
+| `all_comments`           | array  | All comments across all files                |
+| `all_literals`           | array  | All literals across all files                |
+| `all_returns`            | array  | All return statements across all files       |
+| `all_ifs`                | array  | All if statements across all files           |
+| `all_type_assertions`    | array  | All type assertions across all files         |
+| `all_make_slices`        | array  | All slice make expressions across all files  |
+| `all_appends`            | array  | All append calls across all files            |
+| `all_resource_acquires`  | array  | All resource acquisitions across all files   |
+| `all_resource_closes`    | array  | All resource close calls across all files    |
+| `all_resource_errs`      | array  | All resource error checks across all files   |
+| `all_subtests`           | array  | All subtests across all files                |
+| `all_range_loops`        | array  | All range loops across all files             |
+| `all_loop_var_copies`    | array  | All loop variable copies across all files    |
+| `all_blank_assignments`  | array  | All blank assignments across all files       |
+| `all_decl_groups`        | array  | All declaration groups across all files      |
+| `all_declarations`       | array  | All declarations across all files            |
+| `all_calls`              | array  | All calls across all files                   |
 
 ### Custom Built-ins
 
@@ -276,7 +492,7 @@ deny contains violation if {
     violation := {
         "message": sprintf("Exported type '%s' should have documentation", [t.name]),
         "position": t.position,
-        "rule": "PKG001",
+        "rule": "doccheck",
         "fix": {
             "description": sprintf("Add a doc comment above type %s", [t.name]),
         },
@@ -284,7 +500,7 @@ deny contains violation if {
 }
 ```
 
-## Example Policies
+## Policy Examples
 
 ### Banned Imports
 
@@ -297,7 +513,7 @@ deny contains violation if {
     violation := {
         "message": "Import of 'unsafe' is not allowed",
         "position": imp.position,
-        "rule": "IMP001",
+        "rule": "depguard",
     }
 }
 ```
@@ -321,7 +537,7 @@ deny contains violation if {
     violation := {
         "message": sprintf("'%s' cannot import from '%s'", [current, imported]),
         "position": imp.position,
-        "rule": "ARCH001",
+        "rule": "archlayers",
     }
 }
 ```
@@ -340,7 +556,7 @@ deny contains violation if {
     violation := {
         "message": sprintf("Possible hardcoded credential: '%s'", [v.name]),
         "position": v.position,
-        "rule": "SEC001",
+        "rule": "hardcodedcreds",
     }
 }
 ```
@@ -359,26 +575,98 @@ deny contains violation if {
     violation := {
         "message": sprintf("Exported function '%s' should have documentation", [fn.name]),
         "position": fn.position,
-        "rule": "PKG001",
+        "rule": "doccheck",
     }
 }
 ```
 
-## Example Policies
+## Rule Inventory
 
-The `policies/` directory contains example policies you can use as starting points. Copy them to your project and customize as needed.
+The `policies/` directory contains bundled policies you can use directly or copy into your project and customize. Some rules are direct structural checks, while others are partial or heuristic approximations of existing Go linters based on the metadata available in `CodeContext` and `PackageContext`.
 
-| Policy                  | ID      | Description                                    |
-|-------------------------|---------|------------------------------------------------|
-| `imports/banned`        | IMP001  | Prevents use of banned packages                |
-| `architecture/layers`   | ARCH001 | Enforces clean architecture layer dependencies |
-| `naming/conventions`    | NAME001 | Enforces naming conventions for types          |
-| `security/credentials`  | SEC001  | Prevents hardcoded credentials                 |
-| `structs/tags`          | TAG001  | Ensures exported fields have required tags     |
-| `errors/handling`       | ERR001  | Checks for proper error handling               |
-| `context/usage`         | CTX001  | Checks for proper context.Context usage        |
-| `package/documentation` | PKG001  | Checks that exported symbols have docs         |
-| `package/complexity`    | PKG002  | Checks function complexity and length          |
+Status meanings:
+
+- **Full**: Implements the core rule behavior for the metadata regolint exposes.
+- **Partial**: Covers common cases, but intentionally omits edge cases that need type information, deeper control flow or whole-program analysis.
+- **Heuristic**: Uses syntactic pattern matching and may produce false positives or false negatives in unusual code.
+
+| Category     | Policy                              | Rule ID                        | Status    | Notes                                                   |
+|--------------|-------------------------------------|--------------------------------|-----------|---------------------------------------------------------|
+| Architecture | `architecture/layers`               | `archlayers`                   | Full      | Enforces configured layer import boundaries.            |
+| Comment      | `comment/dupword`                   | `dupword`                      | Heuristic | Checks duplicate words in comments and strings.         |
+| Comment      | `comment/godot`                     | `godot`                        | Heuristic | Checks comment punctuation with common ignore rules.    |
+| Comment      | `comment/godox`                     | `godox`                        | Full      | Checks TODO/FIXME/HACK/BUG comment markers.             |
+| Complexity   | `complexity/nestif`                 | `nestif`                       | Full      | Checks maximum nested `if` depth.                       |
+| Context      | `context/fatcontext`                | `fatcontext`                   | Partial   | Checks context derivation inside range loops.           |
+| Context      | `context/noctx`                     | `noctx`                        | Heuristic | Checks direct `http.NewRequest` calls.                  |
+| Context      | `context/usage`                     | `contextcheck`                 | Full      | Checks `context.Context` parameter position.            |
+| Context      | `context/usage`                     | `contextname`                  | Full      | Checks `context.Context` parameter names.               |
+| Errors       | `errors/err113`                     | `err113`                       | Heuristic | Checks dynamic error creation and missing `%w`.         |
+| Errors       | `errors/handling`                   | `wrapcheck`                    | Heuristic | Checks simple error wrapping patterns.                  |
+| Errors       | `errors/nilerr`                     | `nilerr`                       | Partial   | Checks nil error returns after error guards.            |
+| Errors       | `errors/nilnil`                     | `nilnil`                       | Partial   | Checks literal `nil, nil` style returns.                |
+| Imports      | `imports/banned`                    | `depguard`                     | Full      | Prevents configured banned imports.                     |
+| Imports      | `imports/exptostd`                  | `exptostd`                     | Full      | Checks selected `x/exp` imports moved to stdlib.        |
+| Imports      | `imports/importas`                  | `importas`                     | Partial   | Checks configured import aliases.                       |
+| Naming       | `naming/conventions`                | `interfacenaming`              | Heuristic | Checks project-specific interface naming conventions.   |
+| Package      | `package/complexity`                | `funlen`                       | Full      | Checks function length.                                 |
+| Package      | `package/complexity`                | `gocyclo`                      | Full      | Checks cyclomatic complexity.                           |
+| Package      | `package/documentation`             | `doccheck`                     | Full      | Checks exported symbol documentation.                   |
+| Performance  | `performance/bodyclose`             | `bodyclose`                    | Heuristic | Checks common HTTP response close patterns.             |
+| Performance  | `performance/makezero`              | `makezero`                     | Heuristic | Checks non-zero-length slices before append.            |
+| Performance  | `performance/mirror`                | `mirror`                       | Heuristic | Checks bytes/strings mirror call opportunities.         |
+| Performance  | `performance/perfsprint`            | `perfsprint`                   | Heuristic | Checks simple inefficient `fmt` formatting.             |
+| Performance  | `performance/prealloc`              | `prealloc`                     | Partial   | Checks range-loop appends without capacity.             |
+| Security     | `security/bidichk`                  | `bidichk`                      | Full      | Checks Unicode bidi control characters.                 |
+| Security     | `security/credentials`              | `hardcodedcreds`               | Heuristic | Checks likely hardcoded credential names/values.        |
+| SQL          | `sql/rowserrcheck`                  | `rowserrcheck`                 | Heuristic | Checks common `Rows.Err` patterns.                      |
+| SQL          | `sql/sqlclosecheck`                 | `sqlclosecheck`                | Heuristic | Checks common SQL rows/statement close patterns.        |
+| Structs      | `structs/tags`                      | `musttag`                      | Full      | Ensures exported fields have required tags.             |
+| Style        | `style/asciicheck`                  | `asciicheck`                   | Partial   | Checks exposed identifier facts for non-ASCII text.     |
+| Style        | `style/canonicalheader`             | `canonicalheader`              | Heuristic | Checks known HTTP header literals.                      |
+| Style        | `style/containedctx`                | `containedctx`                 | Heuristic | Checks syntactic `context.Context` struct fields.       |
+| Style        | `style/copyloopvar`                 | `copyloopvar`                  | Partial   | Checks redundant range loop variable copies.            |
+| Style        | `style/decorder`                    | `decorder`                     | Full      | Checks top-level declaration order.                     |
+| Style        | `style/dogsled`                     | `dogsled`                      | Full      | Checks assignments with too many blank identifiers.     |
+| Style        | `style/embeddedstructfieldcheck`    | `embeddedstructfieldcheck`     | Full      | Checks embedded field ordering.                         |
+| Style        | `style/errname`                     | `errname`                      | Heuristic | Checks error naming conventions.                        |
+| Style        | `style/forbidigo`                   | `forbidigo`                    | Heuristic | Checks configured forbidden code patterns.              |
+| Style        | `style/forcetypeassert`             | `forcetypeassert`              | Partial   | Checks unchecked type assertions.                       |
+| Style        | `style/gocheckcompilerdirectives`   | `gocheckcompilerdirectives`    | Partial   | Checks malformed compiler directives.                   |
+| Style        | `style/gochecknoglobals`            | `gochecknoglobals`             | Full      | Checks package-level variables.                         |
+| Style        | `style/gochecknoinits`              | `gochecknoinits`               | Full      | Checks `init` functions.                                |
+| Style        | `style/goheader`                    | `goheader`                     | Full      | Checks configured file headers.                         |
+| Style        | `style/goprintffuncname`            | `goprintffuncname`             | Heuristic | Checks printf-like function names.                      |
+| Style        | `style/inamedparam`                 | `inamedparam`                  | Full      | Checks interface method parameter names.                |
+| Style        | `style/interfacebloat`              | `interfacebloat`               | Partial   | Checks direct interface method counts.                  |
+| Style        | `style/iotamixing`                  | `iotamixing`                   | Full      | Checks const blocks mixing iota and values.             |
+| Style        | `style/lll`                         | `lll`                          | Full      | Checks line length in bytes.                            |
+| Style        | `style/mnd`                         | `mnd`                          | Heuristic | Checks numeric literals against common allowlist.       |
+| Style        | `style/nakedret`                    | `nakedret`                     | Full      | Checks naked returns with named results.                |
+| Style        | `style/nolintlint`                  | `nolintlint`                   | Partial   | Checks basic nolint directive hygiene.                  |
+| Style        | `style/nonamedreturns`              | `nonamedreturns`               | Full      | Checks named return values.                             |
+| Style        | `style/nosprintfhostport`           | `nosprintfhostport`            | Heuristic | Checks likely host:port `fmt.Sprintf` calls.            |
+| Style        | `style/predeclared`                 | `predeclared`                  | Partial   | Checks exposed declarations/params for built-in names.  |
+| Style        | `style/recvcheck`                   | `recvcheck`                    | Partial   | Checks receiver consistency by receiver text.           |
+| Style        | `style/tagliatelle`                 | `tagliatelle`                  | Partial   | Checks selected struct tag naming conventions.          |
+| Style        | `style/usestdlibvars`               | `usestdlibvars`                | Heuristic | Checks literals that should use stdlib constants.       |
+| Test         | `test/paralleltest`                 | `paralleltest`                 | Heuristic | Checks test functions call `t.Parallel`.                |
+| Test         | `test/testableexamples`             | `testableexamples`             | Partial   | Checks examples include output comments.                |
+| Test         | `test/testpackage`                  | `testpackage`                  | Full      | Checks tests use an external package.                   |
+| Test         | `test/thelper`                      | `thelper`                      | Heuristic | Checks likely helpers call `testing.T.Helper`.          |
+| Test         | `test/tparallel`                    | `tparallel`                    | Heuristic | Checks subtests call `t.Parallel`.                      |
+| Test         | `test/usetesting`                   | `usetesting`                   | Partial   | Checks test code should use testing helpers.            |
+
+## Limitations
+
+regolint policies operate on structured metadata extracted from Go syntax. This keeps rules easy to write and test, but it is not a replacement for every compiler, type-checker or whole-program analyzer.
+
+In particular:
+
+- Some bundled policies are heuristic approximations of existing Go linters.
+- Package-wide policies analyze one package at a time, not the whole dependency graph.
+- Rules that need precise type information, alias analysis, interprocedural control flow, SSA or build-tag-specific behavior are intentionally partial or deferred.
+- Example policies are intended as strong starting points and may need project-specific configuration or `nolint` suppressions.
 
 ## Testing Policies
 

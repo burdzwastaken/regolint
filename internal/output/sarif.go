@@ -8,7 +8,8 @@ import (
 )
 
 // SARIF format for GitHub Advanced Security integration.
-// See: https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
+// See GitHub's SARIF support documentation.
+// https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning
 
 type sarifLog struct {
 	Schema  string     `json:"$schema"`
@@ -28,14 +29,14 @@ type sarifTool struct {
 type sarifDriver struct {
 	Name           string      `json:"name"`
 	Version        string      `json:"version"`
-	InformationURI string      `json:"informationUri"`
+	InformationURI string      `json:"informationUri"` // nolint:tagliatelle
 	Rules          []sarifRule `json:"rules"`
 }
 
 type sarifRule struct {
 	ID               string              `json:"id"`
-	ShortDescription sarifMessage        `json:"shortDescription"`
-	HelpURI          string              `json:"helpUri,omitempty"`
+	ShortDescription sarifMessage        `json:"shortDescription"`  // nolint:tagliatelle
+	HelpURI          string              `json:"helpUri,omitempty"` // nolint:tagliatelle
 	Properties       sarifRuleProperties `json:"properties,omitzero"`
 }
 
@@ -44,7 +45,7 @@ type sarifRuleProperties struct {
 }
 
 type sarifResult struct {
-	RuleID    string          `json:"ruleId"`
+	RuleID    string          `json:"ruleId"` // nolint:tagliatelle
 	Level     string          `json:"level"`
 	Message   sarifMessage    `json:"message"`
 	Locations []sarifLocation `json:"locations"`
@@ -55,11 +56,11 @@ type sarifMessage struct {
 }
 
 type sarifLocation struct {
-	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
+	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"` // nolint:tagliatelle
 }
 
 type sarifPhysicalLocation struct {
-	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
+	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"` // nolint:tagliatelle
 	Region           sarifRegion           `json:"region"`
 }
 
@@ -68,11 +69,12 @@ type sarifArtifactLocation struct {
 }
 
 type sarifRegion struct {
-	StartLine   int `json:"startLine"`
-	StartColumn int `json:"startColumn,omitempty"`
+	StartLine   int `json:"startLine"`             // nolint:tagliatelle
+	StartColumn int `json:"startColumn,omitempty"` // nolint:tagliatelle
 }
 
 // WriteSARIF writes violations in SARIF format.
+// nolint:funlen
 func WriteSARIF(w io.Writer, violations []model.Violation, version string) error {
 	rules := extractRules(violations)
 	results := make([]sarifResult, 0, len(violations))

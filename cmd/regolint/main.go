@@ -25,23 +25,23 @@ import (
 )
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = "unknown"
+	version = "dev"     // nolint:gochecknoglobals
+	commit  = "none"    // nolint:gochecknoglobals
+	date    = "unknown" // nolint:gochecknoglobals
 )
 
 var (
-	policyDir   = flag.String("policy-dir", "./policies", "directory containing .rego policy files")
-	disabled    = flag.String("disabled", "", "comma-separated list of rule IDs to disable")
-	exclude     = flag.String("exclude", "", "comma-separated list of file patterns to exclude")
-	format      = flag.String("format", "text", "output format: text, json, sarif")
-	debug       = flag.Bool("debug", false, "enable debug output")
-	dryRun      = flag.Bool("dry-run", false, "show input without evaluating")
-	showVersion = flag.Bool("version", false, "print version and exit")
+	policyDir   = flag.String("policy-dir", "./policies", "directory containing .rego policy files") // nolint:gochecknoglobals,lll
+	disabled    = flag.String("disabled", "", "comma-separated list of rule IDs to disable")         // nolint:gochecknoglobals,lll
+	exclude     = flag.String("exclude", "", "comma-separated list of file patterns to exclude")     // nolint:gochecknoglobals,lll
+	format      = flag.String("format", "text", "output format: text, json, sarif")                  // nolint:gochecknoglobals,lll
+	debug       = flag.Bool("debug", false, "enable debug output")                                   // nolint:gochecknoglobals,lll
+	dryRun      = flag.Bool("dry-run", false, "show input without evaluating")                       // nolint:gochecknoglobals,lll
+	showVersion = flag.Bool("version", false, "print version and exit")                              // nolint:gochecknoglobals,lll
 )
 
 // ErrViolationsFound is returned when policy violations are detected.
-var ErrViolationsFound = errors.New("violations found")
+var ErrViolationsFound = errors.New("violations found") // nolint:gochecknoglobals
 
 func main() {
 	flag.Parse()
@@ -170,8 +170,15 @@ func loadPackages(patterns []string) ([]*packages.Package, error) {
 	return packages.Load(cfg, patterns...)
 }
 
-func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath string, disabledRules, excludePatterns []string) ([]model.Violation, error) {
+// nolint:gocyclo,funlen
+func analyzePackage(
+	pkg *packages.Package,
+	eval *evaluator.Evaluator,
+	modulePath string,
+	disabledRules, excludePatterns []string,
+) ([]model.Violation, error) {
 	var violations []model.Violation
+	var codeContexts []*model.CodeContext
 
 	fset := token.NewFileSet()
 
@@ -181,6 +188,7 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 	}
 
 	trans := transformer.New(pass, modulePath)
+	nolintsByFile := make(map[string][]model.NolintDirective)
 
 	for _, filePath := range pkg.GoFiles {
 		if shouldSkip(filePath, excludePatterns) {
@@ -193,6 +201,8 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 		}
 
 		codeCtx := trans.Transform(file, filePath)
+		codeContexts = append(codeContexts, codeCtx)
+		nolintsByFile[filepath.Base(filePath)] = codeCtx.Nolints
 
 		if *dryRun {
 			data, _ := json.MarshalIndent(codeCtx, "", "  ")
@@ -223,7 +233,41 @@ func analyzePackage(pkg *packages.Package, eval *evaluator.Evaluator, modulePath
 		violations = append(violations, filtered...)
 	}
 
+	if *dryRun || len(codeContexts) == 0 {
+		return violations, nil
+	}
+
+	pkgCtx := transformer.BuildPackageContext(codeContexts)
+	packageViolations, err := eval.EvaluatePackage(context.Background(), pkgCtx)
+	if err != nil {
+		return nil, fmt.Errorf("evaluating package %s: %w", pkg.PkgPath, err)
+	}
+
+	for _, v := range packageViolations {
+		if isDisabled(v.Rule, disabledRules) {
+			continue
+		}
+
+		baseName := v.Position.File
+		if baseName == "" {
+			baseName = filepath.Base(codeContexts[0].FilePath)
+		}
+
+		v.Position.File = packageFilePath(baseName, codeContexts)
+		filtered := nolint.FilterModelViolations([]model.Violation{v}, nolintsByFile[baseName])
+		violations = append(violations, filtered...)
+	}
+
 	return violations, nil
+}
+
+func packageFilePath(baseName string, codeContexts []*model.CodeContext) string {
+	for _, codeCtx := range codeContexts {
+		if filepath.Base(codeCtx.FilePath) == baseName {
+			return codeCtx.FilePath
+		}
+	}
+	return baseName
 }
 
 func shouldSkip(filePath string, patterns []string) bool {

@@ -17,7 +17,7 @@ deny contains violation if {
 	violation := {
 		"message": "unsafe import not allowed",
 		"position": imp.position,
-		"rule": "IMP001",
+		"rule": "depguard",
 	}
 }
 `
@@ -40,7 +40,7 @@ deny contains violation if {
 				},
 			},
 			wantCount: 1,
-			wantRule:  "IMP001",
+			wantRule:  "depguard",
 		},
 		{
 			name: "safe import passes",
@@ -61,7 +61,7 @@ deny contains violation if {
 				},
 			},
 			wantCount: 1,
-			wantRule:  "IMP001",
+			wantRule:  "depguard",
 		},
 	}
 
@@ -94,7 +94,7 @@ deny contains violation if {
 	violation := {
 		"message": "hardcoded password",
 		"position": v.position,
-		"rule": "SEC001",
+		"rule": "hardcodedcreds",
 	}
 }
 `
@@ -158,7 +158,7 @@ func TestEvaluatorMultiplePolicies(t *testing.T) {
 deny contains violation if {
 	some imp in input.imports
 	imp.path == "unsafe"
-	violation := {"message": "unsafe", "position": imp.position, "rule": "IMP001"}
+		violation := {"message": "unsafe", "position": imp.position, "rule": "depguard"}
 }
 `,
 		"naming.rego": `package regolint.rules.naming.test
@@ -166,7 +166,7 @@ deny contains violation if {
 deny contains violation if {
 	some fn in input.functions
 	fn.name == "badName"
-	violation := {"message": "bad name", "position": fn.position, "rule": "NAME001"}
+		violation := {"message": "bad name", "position": fn.position, "rule": "interfacenaming"}
 }
 `,
 	}

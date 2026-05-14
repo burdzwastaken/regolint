@@ -1,7 +1,7 @@
 package regolint.rules.naming.conventions
 
 metadata := {
-	"id": "NAME001",
+	"id": "interfacenaming",
 	"severity": "warning",
 	"description": "Enforces naming conventions for types",
 }

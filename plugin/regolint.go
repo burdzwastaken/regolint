@@ -6,6 +6,7 @@ import (
 	"go/ast"
 	"go/token"
 	"log"
+	"path/filepath"
 	"sync"
 
 	"github.com/burdzwastaken/regolint/internal/config"
@@ -22,14 +23,10 @@ const (
 	doc  = "Policy-as-code for Go. Write lint rules in Rego, not Go."
 )
 
-func init() {
-	register.Plugin(name, New)
-}
-
 // Settings mirrors config options for golangci-lint integration.
 type Settings struct {
-	PolicyDir   string   `json:"policy-dir"`
-	PolicyFiles []string `json:"policy-files"`
+	PolicyDir   string   `json:"policy-dir"`   // nolint:tagliatelle
+	PolicyFiles []string `json:"policy-files"` // nolint:tagliatelle
 	Disabled    []string `json:"disabled"`
 	Exclude     []string `json:"exclude"`
 }
@@ -37,6 +34,11 @@ type Settings struct {
 // RegolintPlugin implements register.LinterPlugin.
 type RegolintPlugin struct {
 	settings Settings
+}
+
+// nolint:gochecknoinits
+func init() {
+	register.Plugin(name, New)
 }
 
 // New creates a new regolint plugin instance with validated settings.
@@ -49,6 +51,7 @@ func New(settings any) (register.LinterPlugin, error) {
 }
 
 // BuildAnalyzers returns the regolint analyzer.
+// nolint:gocyclo,funlen
 func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 	var (
 		evalOnce sync.Once
@@ -86,9 +89,12 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				return nil, nil
 			}
 
-			// Use pass.Pkg.Path() directly - the standard approach for linters
+			// Use pass.Pkg.Path() directly - the standard approach for linters.
 			modulePath := pass.Pkg.Path()
 			trans := transformer.New(pass, modulePath)
+			var codeContexts []*model.CodeContext
+			filesByName := make(map[string]*ast.File)
+			nolintsByFile := make(map[string][]model.NolintDirective)
 
 			for _, file := range pass.Files {
 				filePath := pass.Fset.Position(file.Pos()).Filename
@@ -98,6 +104,10 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				}
 
 				codeCtx := trans.Transform(file, filePath)
+				codeContexts = append(codeContexts, codeCtx)
+				baseName := filepath.Base(filePath)
+				filesByName[baseName] = file
+				nolintsByFile[baseName] = codeCtx.Nolints
 
 				violations, err := eval.Evaluate(context.Background(), codeCtx)
 				if err != nil {
@@ -116,6 +126,37 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				for _, v := range filtered {
 					pos := findPosition(pass, file, v.Position.Line)
 					pass.Reportf(pos, "[%s] %s", v.Rule, v.Message)
+				}
+			}
+
+			if len(codeContexts) == 0 {
+				return nil, nil
+			}
+
+			pkgCtx := transformer.BuildPackageContext(codeContexts)
+			packageViolations, err := eval.EvaluatePackage(context.Background(), pkgCtx)
+			if err != nil {
+				return nil, fmt.Errorf("evaluating package %s: %w", pass.Pkg.Path(), err)
+			}
+
+			for _, v := range packageViolations {
+				if cfg.IsRuleDisabled(v.Rule) {
+					continue
+				}
+
+				baseName := v.Position.File
+				if baseName == "" {
+					baseName = filepath.Base(codeContexts[0].FilePath)
+				}
+
+				filtered := nolint.FilterModelViolations([]model.Violation{v}, nolintsByFile[baseName])
+				for _, filteredViolation := range filtered {
+					file := filesByName[baseName]
+					if file == nil {
+						file = pass.Files[0]
+					}
+					pos := findPosition(pass, file, filteredViolation.Position.Line)
+					pass.Reportf(pos, "[%s] %s", filteredViolation.Rule, filteredViolation.Message)
 				}
 			}
 

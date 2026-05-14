@@ -11,12 +11,15 @@ import (
 
 const maxRegexCacheSize = 1000
 
+// nolint:gochecknoglobals
 var regexCache, _ = lru.New[string, *regexp.Regexp](maxRegexCacheSize)
 
+// nolint:gochecknoinits
 func init() {
 	registerBuiltins()
 }
 
+// nolint:funlen
 func registerBuiltins() {
 	rego.RegisterBuiltin2(
 		&rego.Function{
