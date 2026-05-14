@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -111,7 +112,18 @@ func run() error {
 func loadPolicies(dir string) (map[string]string, error) {
 	policies := make(map[string]string)
 
-	err := filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+	root, err := os.OpenRoot(dir)
+	if os.IsNotExist(err) {
+		return policies, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = root.Close()
+	}()
+
+	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -125,17 +137,13 @@ func loadPolicies(dir string) (map[string]string, error) {
 			return nil
 		}
 
-		content, err := os.ReadFile(filepath.Clean(path))
+		content, err := root.ReadFile(path)
 		if err != nil {
 			return fmt.Errorf("reading %s: %w", path, err)
 		}
-		policies[path] = string(content)
+		policies[filepath.Join(dir, path)] = string(content)
 		return nil
 	})
-
-	if os.IsNotExist(err) {
-		return policies, nil
-	}
 
 	return policies, err
 }
