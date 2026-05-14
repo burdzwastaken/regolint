@@ -12,7 +12,6 @@ regolint is a linter that lets you define custom Go linting rules using [Rego](h
 
 **Why regolint?**
 
-- **No Go expertise required** - Define rules in Rego, a purpose-built policy language
 - **Declarative** - Describe what should be true, not how to check it
 - **Testable** - Unit test your policies with OPA's built-in testing framework
 - **Flexible** - Query imports, functions, types, calls and more
@@ -21,33 +20,53 @@ regolint is a linter that lets you define custom Go linting rules using [Rego](h
 
 ## Installation
 
+regolint requires Go 1.26 or newer when installing from source.
+
 ```bash
 go install github.com/burdzwastaken/regolint/cmd/regolint@latest
 ```
+
+`go install` installs only the `regolint` binary. The bundled policies are not embedded in the binary; copy them from the module cache into your project:
+
+```bash
+moddir=$(go list -m -f '{{.Dir}}' github.com/burdzwastaken/regolint@v1.1.0)
+cp -R "$moddir/policies" ./policies
+regolint --policy-dir ./policies ./...
+```
+
+Use the same module version you installed, or `@latest` after the release is available.
 
 ## Usage
 
 ### Standalone
 
 ```bash
-# run with policies from a directory
-regolint --policy-dir ./policies ./...
-
-# run with specific policy files
+# run with policies from a directory; defaults to ./policies
+# recursively loads .rego files and ignores *_test.rego
 regolint --policy-dir ./policies ./...
 
 # output as JSON
-regolint --format json ./...
+regolint --policy-dir ./policies --format json ./...
 
 # output as SARIF (for GitHub Advanced Security)
-regolint --format sarif ./...
+regolint --policy-dir ./policies --format sarif ./...
 
 # debug mode - show the CodeContext passed to policies
-regolint --debug --dry-run ./pkg/...
+regolint --policy-dir ./policies --debug --dry-run ./pkg/...
 
 # show version
 regolint --version
 ```
+
+The standalone CLI uses `--policy-dir`. `policy-files` is available in golangci-lint plugin settings.
+
+### Exit Codes
+
+| Code | Meaning                                                                             |
+|------|-------------------------------------------------------------------------------------|
+| `0`  | Completed successfully with no violations, or no policies were found.               |
+| `1`  | Policy violations were found, or required package arguments were missing.           |
+| `2`  | Execution error, such as policy parse errors, package loading errors or bad output. |
 
 ### With golangci-lint
 
@@ -56,7 +75,7 @@ regolint integrates with golangci-lint as a [module plugin](https://golangci-lin
 First, create `.custom-gcl.yml` to build a custom golangci-lint binary with regolint:
 
 ```yaml
-version: v2.8.0
+version: v2.12.2
 plugins:
   - module: 'github.com/burdzwastaken/regolint'
     import: 'github.com/burdzwastaken/regolint/plugin'
@@ -68,6 +87,8 @@ Build the custom binary:
 ```bash
 golangci-lint custom
 ```
+
+The `version` in `.custom-gcl.yml` should match the `golangci-lint` binary you use to run `golangci-lint custom`.
 
 Then configure regolint in your `.golangci.yml`:
 
@@ -100,6 +121,8 @@ Run with your custom binary:
 
 Policies use [Rego v1 syntax](https://www.openpolicyagent.org/docs/latest/policy-language/) and follow a standard structure:
 
+Policy packages must live under `regolint.rules.<category>.<rule>` so regolint can discover `deny` rules, for example `package regolint.rules.imports.banned`.
+
 ```rego
 package regolint.rules.imports.banned
 
@@ -122,6 +145,41 @@ deny contains violation if {
     }
 }
 ```
+
+### Violation Object
+
+Policies return violations from `deny`. A violation should use this shape:
+
+```json
+{
+  "message": "Human-readable finding",
+  "rule": "rule-id",
+  "severity": "error",
+  "position": {
+    "file": "example.go",
+    "line": 12,
+    "column": 3
+  },
+  "fix": {
+    "description": "Optional fix description",
+    "edits": [
+      {
+        "position": {"file": "example.go", "line": 12, "column": 3},
+        "old_text": "old",
+        "new_text": "new"
+      }
+    ]
+  }
+}
+```
+
+| Field      | Required | Description                                                      |
+|------------|----------|------------------------------------------------------------------|
+| `message`  | Yes      | Human-readable violation message.                                |
+| `rule`     | Yes      | Rule ID used in output, configuration and `nolint` directives.   |
+| `position` | Yes      | Source location. Set `file`, `line` and `column` when available. |
+| `severity` | No       | Optional severity. Defaults to `error` in text output.           |
+| `fix`      | No       | Optional auto-fix description and text edits.                    |
 
 ### CodeContext Schema (Single File)
 
@@ -220,22 +278,22 @@ Policies receive a `CodeContext` as input with the following structure:
 
 #### LiteralInfo (`input.literals[]`)
 
-| Field         | Type   | Description                                               |
-|---------------|--------|-----------------------------------------------------------|
-| `kind`        | string | Literal kind (`int`, `float`, `imag`, `char`, `string`)   |
-| `value`       | string | Literal source text                                       |
-| `in_function` | string | Function containing this literal                          |
-| `position`    | object | Source location (`file`, `line`, `column`)                |
+| Field         | Type   | Description                                             |
+|---------------|--------|---------------------------------------------------------|
+| `kind`        | string | Literal kind (`int`, `float`, `imag`, `char`, `string`) |
+| `value`       | string | Literal source text                                     |
+| `in_function` | string | Function containing this literal                        |
+| `position`    | object | Source location (`file`, `line`, `column`)              |
 
 #### ReturnInfo (`input.returns[]`)
 
-| Field      | Type    | Description                                      |
-|------------|---------|--------------------------------------------------|
-| `function` | string  | Function containing this return statement        |
-| `receiver` | string  | Receiver type for method returns                 |
-| `results`  | array   | Return result expressions as strings             |
-| `is_naked` | boolean | Whether this is a bare return statement          |
-| `position` | object  | Source location (`file`, `line`, `column`)       |
+| Field      | Type    | Description                                |
+|------------|---------|--------------------------------------------|
+| `function` | string  | Function containing this return statement  |
+| `receiver` | string  | Receiver type for method returns           |
+| `results`  | array   | Return result expressions as strings       |
+| `is_naked` | boolean | Whether this is a bare return statement    |
+| `position` | object  | Source location (`file`, `line`, `column`) |
 
 #### IfInfo (`input.ifs[]`)
 
@@ -362,11 +420,11 @@ Policies receive a `CodeContext` as input with the following structure:
 
 #### DeclInfo (`input.declarations[]`)
 
-| Field      | Type   | Description                                                  |
-|------------|--------|--------------------------------------------------------------|
-| `kind`     | string | Declaration kind (`import`, `const`, `var`, `type`, `func`)  |
-| `name`     | string | Declaration name                                             |
-| `position` | object | Source location (`file`, `line`, `column`)                   |
+| Field      | Type   | Description                                                 |
+|------------|--------|-------------------------------------------------------------|
+| `kind`     | string | Declaration kind (`import`, `const`, `var`, `type`, `func`) |
+| `name`     | string | Declaration name                                            |
+| `position` | object | Source location (`file`, `line`, `column`)                  |
 
 #### FieldInfo (`input.types[].fields[]`)
 
@@ -395,25 +453,25 @@ Policies receive a `CodeContext` as input with the following structure:
 
 #### NolintDirective (`input.nolints[]`)
 
-| Field      | Type    | Description                                |
-|------------|---------|--------------------------------------------|
-| `line`     | integer | Directive line                             |
-| `end_line` | integer | Optional range end line                    |
-| `rules`    | array   | Suppressed rule IDs                        |
-| `reason`   | string  | Optional suppression reason                |
+| Field      | Type    | Description                 |
+|------------|---------|-----------------------------|
+| `line`     | integer | Directive line              |
+| `end_line` | integer | Optional range end line     |
+| `rules`    | array   | Suppressed rule IDs         |
+| `reason`   | string  | Optional suppression reason |
 
 #### CallInfo (`input.calls[]`)
 
-| Field           | Type    | Description                                |
-|-----------------|---------|--------------------------------------------|
-| `function`      | string  | Called function name                       |
-| `package`       | string  | Package of called function                 |
-| `receiver`      | string  | Receiver variable name for method calls    |
-| `receiver_type` | string  | Receiver type for method calls             |
-| `args`          | array   | Argument expressions as strings            |
-| `in_function`   | string  | Function containing this call              |
-| `in_func_lit`   | boolean | Whether the call is inside a func literal  |
-| `position`      | object  | Source location                            |
+| Field           | Type    | Description                               |
+|-----------------|---------|-------------------------------------------|
+| `function`      | string  | Called function name                      |
+| `package`       | string  | Package of called function                |
+| `receiver`      | string  | Receiver variable name for method calls   |
+| `receiver_type` | string  | Receiver type for method calls            |
+| `args`          | array   | Argument expressions as strings           |
+| `in_function`   | string  | Function containing this call             |
+| `in_func_lit`   | boolean | Whether the call is inside a func literal |
+| `position`      | object  | Source location                           |
 
 #### TypeUsageInfo (`input.type_usages[]`)
 
@@ -439,34 +497,34 @@ Policies receive a `CodeContext` as input with the following structure:
 
 For package-wide analysis, policies receive a `PackageContext`:
 
-| Field                    | Type   | Description                                  |
-|--------------------------|--------|----------------------------------------------|
-| `module_path`            | string | Go module path                               |
-| `package`                | object | Package name, path and doc                   |
-| `files`                  | array  | All CodeContext objects in the package       |
-| `all_imports`            | array  | Deduplicated imports across all files        |
-| `all_functions`          | array  | All functions across all files               |
-| `all_types`              | array  | All types across all files                   |
-| `all_variables`          | array  | All variables across all files               |
-| `all_constants`          | array  | All constants across all files               |
-| `all_lines`              | array  | All source lines across all files            |
-| `all_comments`           | array  | All comments across all files                |
-| `all_literals`           | array  | All literals across all files                |
-| `all_returns`            | array  | All return statements across all files       |
-| `all_ifs`                | array  | All if statements across all files           |
-| `all_type_assertions`    | array  | All type assertions across all files         |
-| `all_make_slices`        | array  | All slice make expressions across all files  |
-| `all_appends`            | array  | All append calls across all files            |
-| `all_resource_acquires`  | array  | All resource acquisitions across all files   |
-| `all_resource_closes`    | array  | All resource close calls across all files    |
-| `all_resource_errs`      | array  | All resource error checks across all files   |
-| `all_subtests`           | array  | All subtests across all files                |
-| `all_range_loops`        | array  | All range loops across all files             |
-| `all_loop_var_copies`    | array  | All loop variable copies across all files    |
-| `all_blank_assignments`  | array  | All blank assignments across all files       |
-| `all_decl_groups`        | array  | All declaration groups across all files      |
-| `all_declarations`       | array  | All declarations across all files            |
-| `all_calls`              | array  | All calls across all files                   |
+| Field                   | Type   | Description                                 |
+|-------------------------|--------|---------------------------------------------|
+| `module_path`           | string | Go module path                              |
+| `package`               | object | Package name, path and doc                  |
+| `files`                 | array  | All CodeContext objects in the package      |
+| `all_imports`           | array  | Deduplicated imports across all files       |
+| `all_functions`         | array  | All functions across all files              |
+| `all_types`             | array  | All types across all files                  |
+| `all_variables`         | array  | All variables across all files              |
+| `all_constants`         | array  | All constants across all files              |
+| `all_lines`             | array  | All source lines across all files           |
+| `all_comments`          | array  | All comments across all files               |
+| `all_literals`          | array  | All literals across all files               |
+| `all_returns`           | array  | All return statements across all files      |
+| `all_ifs`               | array  | All if statements across all files          |
+| `all_type_assertions`   | array  | All type assertions across all files        |
+| `all_make_slices`       | array  | All slice make expressions across all files |
+| `all_appends`           | array  | All append calls across all files           |
+| `all_resource_acquires` | array  | All resource acquisitions across all files  |
+| `all_resource_closes`   | array  | All resource close calls across all files   |
+| `all_resource_errs`     | array  | All resource error checks across all files  |
+| `all_subtests`          | array  | All subtests across all files               |
+| `all_range_loops`       | array  | All range loops across all files            |
+| `all_loop_var_copies`   | array  | All loop variable copies across all files   |
+| `all_blank_assignments` | array  | All blank assignments across all files      |
+| `all_decl_groups`       | array  | All declaration groups across all files     |
+| `all_declarations`      | array  | All declarations across all files           |
+| `all_calls`             | array  | All calls across all files                  |
 
 ### Custom Built-ins
 
@@ -529,11 +587,26 @@ layer_rules := {
     "infrastructure": ["domain", "application"],
 }
 
+default get_layer(_) := "unknown"
+
+get_layer(pkg) := layer if {
+    parts := split(pkg, "/")
+    layer := parts[count(parts) - 1]
+    layer in object.keys(layer_rules)
+}
+
 deny contains violation if {
     current := get_layer(input.package.path)
+    current != "unknown"
+
     some imp in input.imports
     imported := get_layer(imp.path)
-    not imported in layer_rules[current]
+    imported != "unknown"
+    imported != current
+
+    allowed := layer_rules[current]
+    not imported in allowed
+
     violation := {
         "message": sprintf("'%s' cannot import from '%s'", [current, imported]),
         "position": imp.position,
@@ -590,72 +663,72 @@ Status meanings:
 - **Partial**: Covers common cases, but intentionally omits edge cases that need type information, deeper control flow or whole-program analysis.
 - **Heuristic**: Uses syntactic pattern matching and may produce false positives or false negatives in unusual code.
 
-| Category     | Policy                              | Rule ID                        | Status    | Notes                                                   |
-|--------------|-------------------------------------|--------------------------------|-----------|---------------------------------------------------------|
-| Architecture | `architecture/layers`               | `archlayers`                   | Full      | Enforces configured layer import boundaries.            |
-| Comment      | `comment/dupword`                   | `dupword`                      | Heuristic | Checks duplicate words in comments and strings.         |
-| Comment      | `comment/godot`                     | `godot`                        | Heuristic | Checks comment punctuation with common ignore rules.    |
-| Comment      | `comment/godox`                     | `godox`                        | Full      | Checks TODO/FIXME/HACK/BUG comment markers.             |
-| Complexity   | `complexity/nestif`                 | `nestif`                       | Full      | Checks maximum nested `if` depth.                       |
-| Context      | `context/fatcontext`                | `fatcontext`                   | Partial   | Checks context derivation inside range loops.           |
-| Context      | `context/noctx`                     | `noctx`                        | Heuristic | Checks direct `http.NewRequest` calls.                  |
-| Context      | `context/usage`                     | `contextcheck`                 | Full      | Checks `context.Context` parameter position.            |
-| Context      | `context/usage`                     | `contextname`                  | Full      | Checks `context.Context` parameter names.               |
-| Errors       | `errors/err113`                     | `err113`                       | Heuristic | Checks dynamic error creation and missing `%w`.         |
-| Errors       | `errors/handling`                   | `wrapcheck`                    | Heuristic | Checks simple error wrapping patterns.                  |
-| Errors       | `errors/nilerr`                     | `nilerr`                       | Partial   | Checks nil error returns after error guards.            |
-| Errors       | `errors/nilnil`                     | `nilnil`                       | Partial   | Checks literal `nil, nil` style returns.                |
-| Imports      | `imports/banned`                    | `depguard`                     | Full      | Prevents configured banned imports.                     |
-| Imports      | `imports/exptostd`                  | `exptostd`                     | Full      | Checks selected `x/exp` imports moved to stdlib.        |
-| Imports      | `imports/importas`                  | `importas`                     | Partial   | Checks configured import aliases.                       |
-| Naming       | `naming/conventions`                | `interfacenaming`              | Heuristic | Checks project-specific interface naming conventions.   |
-| Package      | `package/complexity`                | `funlen`                       | Full      | Checks function length.                                 |
-| Package      | `package/complexity`                | `gocyclo`                      | Full      | Checks cyclomatic complexity.                           |
-| Package      | `package/documentation`             | `doccheck`                     | Full      | Checks exported symbol documentation.                   |
-| Performance  | `performance/bodyclose`             | `bodyclose`                    | Heuristic | Checks common HTTP response close patterns.             |
-| Performance  | `performance/makezero`              | `makezero`                     | Heuristic | Checks non-zero-length slices before append.            |
-| Performance  | `performance/mirror`                | `mirror`                       | Heuristic | Checks bytes/strings mirror call opportunities.         |
-| Performance  | `performance/perfsprint`            | `perfsprint`                   | Heuristic | Checks simple inefficient `fmt` formatting.             |
-| Performance  | `performance/prealloc`              | `prealloc`                     | Partial   | Checks range-loop appends without capacity.             |
-| Security     | `security/bidichk`                  | `bidichk`                      | Full      | Checks Unicode bidi control characters.                 |
-| Security     | `security/credentials`              | `hardcodedcreds`               | Heuristic | Checks likely hardcoded credential names/values.        |
-| SQL          | `sql/rowserrcheck`                  | `rowserrcheck`                 | Heuristic | Checks common `Rows.Err` patterns.                      |
-| SQL          | `sql/sqlclosecheck`                 | `sqlclosecheck`                | Heuristic | Checks common SQL rows/statement close patterns.        |
-| Structs      | `structs/tags`                      | `musttag`                      | Full      | Ensures exported fields have required tags.             |
-| Style        | `style/asciicheck`                  | `asciicheck`                   | Partial   | Checks exposed identifier facts for non-ASCII text.     |
-| Style        | `style/canonicalheader`             | `canonicalheader`              | Heuristic | Checks known HTTP header literals.                      |
-| Style        | `style/containedctx`                | `containedctx`                 | Heuristic | Checks syntactic `context.Context` struct fields.       |
-| Style        | `style/copyloopvar`                 | `copyloopvar`                  | Partial   | Checks redundant range loop variable copies.            |
-| Style        | `style/decorder`                    | `decorder`                     | Full      | Checks top-level declaration order.                     |
-| Style        | `style/dogsled`                     | `dogsled`                      | Full      | Checks assignments with too many blank identifiers.     |
-| Style        | `style/embeddedstructfieldcheck`    | `embeddedstructfieldcheck`     | Full      | Checks embedded field ordering.                         |
-| Style        | `style/errname`                     | `errname`                      | Heuristic | Checks error naming conventions.                        |
-| Style        | `style/forbidigo`                   | `forbidigo`                    | Heuristic | Checks configured forbidden code patterns.              |
-| Style        | `style/forcetypeassert`             | `forcetypeassert`              | Partial   | Checks unchecked type assertions.                       |
-| Style        | `style/gocheckcompilerdirectives`   | `gocheckcompilerdirectives`    | Partial   | Checks malformed compiler directives.                   |
-| Style        | `style/gochecknoglobals`            | `gochecknoglobals`             | Full      | Checks package-level variables.                         |
-| Style        | `style/gochecknoinits`              | `gochecknoinits`               | Full      | Checks `init` functions.                                |
-| Style        | `style/goheader`                    | `goheader`                     | Full      | Checks configured file headers.                         |
-| Style        | `style/goprintffuncname`            | `goprintffuncname`             | Heuristic | Checks printf-like function names.                      |
-| Style        | `style/inamedparam`                 | `inamedparam`                  | Full      | Checks interface method parameter names.                |
-| Style        | `style/interfacebloat`              | `interfacebloat`               | Partial   | Checks direct interface method counts.                  |
-| Style        | `style/iotamixing`                  | `iotamixing`                   | Full      | Checks const blocks mixing iota and values.             |
-| Style        | `style/lll`                         | `lll`                          | Full      | Checks line length in bytes.                            |
-| Style        | `style/mnd`                         | `mnd`                          | Heuristic | Checks numeric literals against common allowlist.       |
-| Style        | `style/nakedret`                    | `nakedret`                     | Full      | Checks naked returns with named results.                |
-| Style        | `style/nolintlint`                  | `nolintlint`                   | Partial   | Checks basic nolint directive hygiene.                  |
-| Style        | `style/nonamedreturns`              | `nonamedreturns`               | Full      | Checks named return values.                             |
-| Style        | `style/nosprintfhostport`           | `nosprintfhostport`            | Heuristic | Checks likely host:port `fmt.Sprintf` calls.            |
-| Style        | `style/predeclared`                 | `predeclared`                  | Partial   | Checks exposed declarations/params for built-in names.  |
-| Style        | `style/recvcheck`                   | `recvcheck`                    | Partial   | Checks receiver consistency by receiver text.           |
-| Style        | `style/tagliatelle`                 | `tagliatelle`                  | Partial   | Checks selected struct tag naming conventions.          |
-| Style        | `style/usestdlibvars`               | `usestdlibvars`                | Heuristic | Checks literals that should use stdlib constants.       |
-| Test         | `test/paralleltest`                 | `paralleltest`                 | Heuristic | Checks test functions call `t.Parallel`.                |
-| Test         | `test/testableexamples`             | `testableexamples`             | Partial   | Checks examples include output comments.                |
-| Test         | `test/testpackage`                  | `testpackage`                  | Full      | Checks tests use an external package.                   |
-| Test         | `test/thelper`                      | `thelper`                      | Heuristic | Checks likely helpers call `testing.T.Helper`.          |
-| Test         | `test/tparallel`                    | `tparallel`                    | Heuristic | Checks subtests call `t.Parallel`.                      |
-| Test         | `test/usetesting`                   | `usetesting`                   | Partial   | Checks test code should use testing helpers.            |
+| Category     | Policy                            | Rule ID                     | Status    | Notes                                                  |
+|--------------|-----------------------------------|-----------------------------|-----------|--------------------------------------------------------|
+| Architecture | `architecture/layers`             | `archlayers`                | Full      | Enforces configured layer import boundaries.           |
+| Comment      | `comment/dupword`                 | `dupword`                   | Heuristic | Checks duplicate words in comments and strings.        |
+| Comment      | `comment/godot`                   | `godot`                     | Heuristic | Checks comment punctuation with common ignore rules.   |
+| Comment      | `comment/godox`                   | `godox`                     | Full      | Checks TODO/FIXME/HACK/BUG comment markers.            |
+| Complexity   | `complexity/nestif`               | `nestif`                    | Full      | Checks maximum nested `if` depth.                      |
+| Context      | `context/fatcontext`              | `fatcontext`                | Partial   | Checks context derivation inside range loops.          |
+| Context      | `context/noctx`                   | `noctx`                     | Heuristic | Checks direct `http.NewRequest` calls.                 |
+| Context      | `context/usage`                   | `contextcheck`              | Full      | Checks `context.Context` parameter position.           |
+| Context      | `context/usage`                   | `contextname`               | Full      | Checks `context.Context` parameter names.              |
+| Errors       | `errors/err113`                   | `err113`                    | Heuristic | Checks dynamic error creation and missing `%w`.        |
+| Errors       | `errors/handling`                 | `wrapcheck`                 | Heuristic | Checks simple error wrapping patterns.                 |
+| Errors       | `errors/nilerr`                   | `nilerr`                    | Partial   | Checks nil error returns after error guards.           |
+| Errors       | `errors/nilnil`                   | `nilnil`                    | Partial   | Checks literal `nil, nil` style returns.               |
+| Imports      | `imports/banned`                  | `depguard`                  | Full      | Prevents configured banned imports.                    |
+| Imports      | `imports/exptostd`                | `exptostd`                  | Full      | Checks selected `x/exp` imports moved to stdlib.       |
+| Imports      | `imports/importas`                | `importas`                  | Partial   | Checks configured import aliases.                      |
+| Naming       | `naming/conventions`              | `interfacenaming`           | Heuristic | Checks project-specific interface naming conventions.  |
+| Package      | `package/complexity`              | `funlen`                    | Full      | Checks function length.                                |
+| Package      | `package/complexity`              | `gocyclo`                   | Full      | Checks cyclomatic complexity.                          |
+| Package      | `package/documentation`           | `doccheck`                  | Full      | Checks exported symbol documentation.                  |
+| Performance  | `performance/bodyclose`           | `bodyclose`                 | Heuristic | Checks common HTTP response close patterns.            |
+| Performance  | `performance/makezero`            | `makezero`                  | Heuristic | Checks non-zero-length slices before append.           |
+| Performance  | `performance/mirror`              | `mirror`                    | Heuristic | Checks bytes/strings mirror call opportunities.        |
+| Performance  | `performance/perfsprint`          | `perfsprint`                | Heuristic | Checks simple inefficient `fmt` formatting.            |
+| Performance  | `performance/prealloc`            | `prealloc`                  | Partial   | Checks range-loop appends without capacity.            |
+| Security     | `security/bidichk`                | `bidichk`                   | Full      | Checks Unicode bidi control characters.                |
+| Security     | `security/credentials`            | `hardcodedcreds`            | Heuristic | Checks likely hardcoded credential names/values.       |
+| SQL          | `sql/rowserrcheck`                | `rowserrcheck`              | Heuristic | Checks common `Rows.Err` patterns.                     |
+| SQL          | `sql/sqlclosecheck`               | `sqlclosecheck`             | Heuristic | Checks common SQL rows/statement close patterns.       |
+| Structs      | `structs/tags`                    | `musttag`                   | Full      | Ensures exported fields have required tags.            |
+| Style        | `style/asciicheck`                | `asciicheck`                | Partial   | Checks exposed identifier facts for non-ASCII text.    |
+| Style        | `style/canonicalheader`           | `canonicalheader`           | Heuristic | Checks known HTTP header literals.                     |
+| Style        | `style/containedctx`              | `containedctx`              | Heuristic | Checks syntactic `context.Context` struct fields.      |
+| Style        | `style/copyloopvar`               | `copyloopvar`               | Partial   | Checks redundant range loop variable copies.           |
+| Style        | `style/decorder`                  | `decorder`                  | Full      | Checks top-level declaration order.                    |
+| Style        | `style/dogsled`                   | `dogsled`                   | Full      | Checks assignments with too many blank identifiers.    |
+| Style        | `style/embeddedstructfieldcheck`  | `embeddedstructfieldcheck`  | Full      | Checks embedded field ordering.                        |
+| Style        | `style/errname`                   | `errname`                   | Heuristic | Checks error naming conventions.                       |
+| Style        | `style/forbidigo`                 | `forbidigo`                 | Heuristic | Checks configured forbidden code patterns.             |
+| Style        | `style/forcetypeassert`           | `forcetypeassert`           | Partial   | Checks unchecked type assertions.                      |
+| Style        | `style/gocheckcompilerdirectives` | `gocheckcompilerdirectives` | Partial   | Checks malformed compiler directives.                  |
+| Style        | `style/gochecknoglobals`          | `gochecknoglobals`          | Full      | Checks package-level variables.                        |
+| Style        | `style/gochecknoinits`            | `gochecknoinits`            | Full      | Checks `init` functions.                               |
+| Style        | `style/goheader`                  | `goheader`                  | Full      | Checks configured file headers.                        |
+| Style        | `style/goprintffuncname`          | `goprintffuncname`          | Heuristic | Checks printf-like function names.                     |
+| Style        | `style/inamedparam`               | `inamedparam`               | Full      | Checks interface method parameter names.               |
+| Style        | `style/interfacebloat`            | `interfacebloat`            | Partial   | Checks direct interface method counts.                 |
+| Style        | `style/iotamixing`                | `iotamixing`                | Full      | Checks const blocks mixing iota and values.            |
+| Style        | `style/lll`                       | `lll`                       | Full      | Checks line length in bytes.                           |
+| Style        | `style/mnd`                       | `mnd`                       | Heuristic | Checks numeric literals against common allowlist.      |
+| Style        | `style/nakedret`                  | `nakedret`                  | Full      | Checks naked returns with named results.               |
+| Style        | `style/nolintlint`                | `nolintlint`                | Partial   | Checks basic nolint directive hygiene.                 |
+| Style        | `style/nonamedreturns`            | `nonamedreturns`            | Full      | Checks named return values.                            |
+| Style        | `style/nosprintfhostport`         | `nosprintfhostport`         | Heuristic | Checks likely host:port `fmt.Sprintf` calls.           |
+| Style        | `style/predeclared`               | `predeclared`               | Partial   | Checks exposed declarations/params for built-in names. |
+| Style        | `style/recvcheck`                 | `recvcheck`                 | Partial   | Checks receiver consistency by receiver text.          |
+| Style        | `style/tagliatelle`               | `tagliatelle`               | Partial   | Checks selected struct tag naming conventions.         |
+| Style        | `style/usestdlibvars`             | `usestdlibvars`             | Heuristic | Checks literals that should use stdlib constants.      |
+| Test         | `test/paralleltest`               | `paralleltest`              | Heuristic | Checks test functions call `t.Parallel`.               |
+| Test         | `test/testableexamples`           | `testableexamples`          | Partial   | Checks examples include output comments.               |
+| Test         | `test/testpackage`                | `testpackage`               | Full      | Checks tests use an external package.                  |
+| Test         | `test/thelper`                    | `thelper`                   | Heuristic | Checks likely helpers call `testing.T.Helper`.         |
+| Test         | `test/tparallel`                  | `tparallel`                 | Heuristic | Checks subtests call `t.Parallel`.                     |
+| Test         | `test/usetesting`                 | `usetesting`                | Partial   | Checks test code should use testing helpers.           |
 
 ## Limitations
 
@@ -666,7 +739,7 @@ In particular:
 - Some bundled policies are heuristic approximations of existing Go linters.
 - Package-wide policies analyze one package at a time, not the whole dependency graph.
 - Rules that need precise type information, alias analysis, interprocedural control flow, SSA or build-tag-specific behavior are intentionally partial or deferred.
-- Example policies are intended as strong starting points and may need project-specific configuration or `nolint` suppressions.
+- Bundled policies are intended as strong starting points and may need project-specific configuration or `nolint` suppressions.
 
 ## Testing Policies
 
