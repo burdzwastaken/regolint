@@ -4,6 +4,10 @@
 [![Release](https://img.shields.io/github/v/release/burdzwastaken/regolint)](https://github.com/burdzwastaken/regolint/releases/latest)
 [![License](https://img.shields.io/github/license/burdzwastaken/regolint)](LICENSE)
 
+<p align="center">
+  <img src="assets/regolint-gopher.png" width="180" alt="regolint mascot">
+</p>
+
 Rego-powered linting for Go.
 
 regolint lets you write custom Go lint rules as [Rego](https://www.openpolicyagent.org/docs/latest/policy-language/) policies. Policies query structured Go source metadata, so custom checks can be declarative, package-aware and testable with OPA.
