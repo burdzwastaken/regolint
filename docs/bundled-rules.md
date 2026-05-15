@@ -11,6 +11,7 @@ Status meanings:
 | Category     | Policy                            | Rule ID                     | Status    | Notes                                                  |
 |--------------|-----------------------------------|-----------------------------|-----------|--------------------------------------------------------|
 | Architecture | `architecture/layers`             | `archlayers`                | Full      | Enforces configured layer import boundaries.           |
+| Architecture | `architecture/importboundaries`    | `importboundaries`          | Full      | Checks configured package import boundaries.           |
 | Comment      | `comment/dupword`                 | `dupword`                   | Heuristic | Checks duplicate words in comments and strings.        |
 | Comment      | `comment/godot`                   | `godot`                     | Heuristic | Checks comment punctuation with common ignore rules.   |
 | Comment      | `comment/godox`                   | `godox`                     | Full      | Checks TODO/FIXME/HACK/BUG comment markers.            |
@@ -41,16 +42,20 @@ Status meanings:
 | SQL          | `sql/sqlclosecheck`               | `sqlclosecheck`             | Heuristic | Checks common SQL rows/statement close patterns.       |
 | Structs      | `structs/tags`                    | `musttag`                   | Full      | Ensures exported fields have required tags.            |
 | Style        | `style/asciicheck`                | `asciicheck`                | Partial   | Checks exposed identifier facts for non-ASCII text.    |
+| Style        | `style/builderchain`              | `builderchain`              | Full      | Checks configured builder methods return builder type.  |
 | Style        | `style/builderonly`               | `builderonly`               | Full      | Checks configured types use builders for construction.  |
 | Style        | `style/canonicalheader`           | `canonicalheader`           | Heuristic | Checks known HTTP header literals.                     |
 | Style        | `style/containedctx`              | `containedctx`              | Heuristic | Checks syntactic `context.Context` struct fields.      |
+| Style        | `style/constructorinterfaces`     | `constructorinterfaces`     | Partial   | Checks configured constructor dependency types.         |
 | Style        | `style/copyloopvar`               | `copyloopvar`               | Partial   | Checks redundant range loop variable copies.           |
 | Style        | `style/decorder`                  | `decorder`                  | Full      | Checks top-level declaration order.                    |
 | Style        | `style/dogsled`                   | `dogsled`                   | Full      | Checks assignments with too many blank identifiers.    |
 | Style        | `style/embeddedstructfieldcheck`  | `embeddedstructfieldcheck`  | Full      | Checks embedded field ordering.                        |
 | Style        | `style/errname`                   | `errname`                   | Heuristic | Checks error naming conventions.                       |
+| Style        | `style/exposedinternals`          | `exposedinternals`          | Partial   | Checks configured internal types exposed in exported APIs. |
 | Style        | `style/forbidigo`                 | `forbidigo`                 | Heuristic | Checks configured forbidden code patterns.             |
 | Style        | `style/forcetypeassert`           | `forcetypeassert`           | Partial   | Checks unchecked type assertions.                      |
+| Style        | `style/functionaloptions`         | `functionaloptions`         | Full      | Checks configured constructors use functional options.  |
 | Style        | `style/gocheckcompilerdirectives` | `gocheckcompilerdirectives` | Partial   | Checks malformed compiler directives.                  |
 | Style        | `style/gochecknoglobals`          | `gochecknoglobals`          | Full      | Checks package-level variables.                        |
 | Style        | `style/gochecknoinits`            | `gochecknoinits`            | Full      | Checks `init` functions.                               |

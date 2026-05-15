@@ -100,12 +100,83 @@ linters:
                 - example.com/project.ServerConfig
               allowed_functions:
                 - NewClientConfigBuilder
-          exclude:
-            - "**/vendor/**"
-            - "**/*_test.go"
+            builderchain:
+              types:
+                - ClientConfigBuilder
+              method_prefixes:
+                - With
+                - Set
+              require_pointer_return: true
+            importboundaries:
+              rules:
+                - from: .*/internal/infrastructure(/.*)?$
+                  forbidden:
+                    - .*/internal/application(/.*)?$
+                  message: infrastructure must not import application
+            constructorinterfaces:
+              dependency_rules:
+                - parameter_names:
+                    - db
+                    - client
+                  forbidden_type_patterns:
+                    - ^\*?database/sql\.DB$
+                    - ^\*?net/http\.Client$
+                  message: constructors should accept interfaces for dependencies
+            exposedinternals:
+              forbidden_types:
+                - internal/cache.Entry
+              forbidden_type_patterns:
+                - ^example\.com/project/internal/.*
+              allowed_types:
+                - internal/cache.PublicSnapshot
+              allowed_functions:
+                - NewInternalAdapter
+              check_parameters: true
+              check_returns: true
+              check_fields: true
+            functionaloptions:
+              max_parameters: 3
+              constructor_prefixes:
+                - New
+              option_suffixes:
+                - Option
+              require_option_application: true
+            exclude:
+              - "**/vendor/**"
+              - "**/*_test.go"
 ```
 
-Configured rule options are available to Rego policies at `input.rule_options.<rule>`. For example, the `builderonly` policy reads `input.rule_options.builderonly.types` and `input.rule_options.builderonly.allowed_functions`.
+Configured rule options are available to Rego policies at `input.rule_options.<rule>`.
+
+Common bundled rule options:
+
+| Rule                | Option                       | Description                                                |
+|---------------------|------------------------------|------------------------------------------------------------|
+| `builderonly`       | `types`                      | Type names or identities that must use builder creation.   |
+| `builderonly`       | `allowed_functions`          | Functions allowed to construct configured types directly.  |
+| `builderchain`      | `types`                      | Builder receiver types whose chain methods must return it. |
+| `builderchain`      | `method_prefixes`            | Chainable method prefixes. Defaults to `With` and `Set`.   |
+| `builderchain`      | `allowed_methods`            | Builder methods exempt from chain return checks.           |
+| `builderchain`      | `require_pointer_return`     | Require chain methods to return a pointer builder type.    |
+| `constructorinterfaces` | `dependency_rules`        | Constructor dependency type rules for interface boundaries. |
+| `exposedinternals`  | `forbidden_types`            | Internal type names or identities forbidden in exported APIs. |
+| `exposedinternals`  | `forbidden_type_patterns`    | Regex patterns for internal types forbidden in exported APIs. |
+| `exposedinternals`  | `allowed_types`              | Internal types exempt from exported API checks.            |
+| `exposedinternals`  | `allowed_functions`          | Exported functions exempt from exposed internal checks.    |
+| `exposedinternals`  | `check_parameters`           | Check exported function parameters. Defaults to `true`.    |
+| `exposedinternals`  | `check_returns`              | Check exported function returns. Defaults to `true`.       |
+| `exposedinternals`  | `check_fields`               | Check exported struct fields. Defaults to `true`.          |
+| `functionaloptions` | `max_parameters`             | Maximum non-context constructor parameters before flagging. |
+| `functionaloptions` | `constructor_prefixes`       | Constructor name prefixes to check. Defaults to `New`.     |
+| `functionaloptions` | `option_suffixes`            | Variadic option type suffixes. Defaults to `Option`.       |
+| `functionaloptions` | `allowed_functions`          | Constructor functions exempt from this rule.               |
+| `functionaloptions` | `require_option_application` | Require constructors to apply or forward variadic options. |
+| `forbidigo`         | `identifiers`                | Identifier names to forbid.                                |
+| `forbidigo`         | `calls`                      | Function or method call names to forbid.                   |
+| `forbidigo`         | `strings`                    | String literals to forbid.                                 |
+| `goheader`          | `required_pattern`           | Regular expression required in the file header.            |
+| `importboundaries`  | `rules`                      | Regex-based package/import boundary rules.                 |
+| `importas`          | `aliases`                    | Import path to required alias mapping.                     |
 
 Run with the custom binary:
 

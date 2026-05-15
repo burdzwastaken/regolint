@@ -101,7 +101,7 @@ func run() error {
 		allViolations = append(allViolations, violations...)
 	}
 
-	if err := outputResults(allViolations); err != nil {
+	if err := outputResults(allViolations, cfg.Output.Format); err != nil {
 		return err
 	}
 	if len(allViolations) > 0 {
@@ -263,12 +263,12 @@ func packageFilePath(baseName string, codeContexts []*model.CodeContext) string 
 	return baseName
 }
 
-func outputResults(violations []model.Violation) error {
+func outputResults(violations []model.Violation, format string) error {
 	if len(violations) == 0 {
 		return nil
 	}
 
-	switch *format {
+	switch format {
 	case "json":
 		data, err := json.MarshalIndent(violations, "", "  ")
 		if err != nil {
