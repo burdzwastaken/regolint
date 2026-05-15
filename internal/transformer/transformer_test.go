@@ -62,14 +62,16 @@ func privateFunc(a, b int) (string, error) {
 	return "", nil
 }
 
+func variadic(format string, args ...any) {}
+
 func (s *Service) Method(ctx context.Context) error {
 	return nil
 }
 `
 	ctx := transformSource(t, src)
 
-	if len(ctx.Functions) != 3 {
-		t.Fatalf("expected 3 functions, got %d", len(ctx.Functions))
+	if len(ctx.Functions) != 4 {
+		t.Fatalf("expected 4 functions, got %d", len(ctx.Functions))
 	}
 
 	tests := []struct {
@@ -82,6 +84,7 @@ func (s *Service) Method(ctx context.Context) error {
 	}{
 		{"TestFunc", true, true, "", 0, 0},
 		{"privateFunc", false, false, "", 2, 2},
+		{"variadic", false, false, "", 2, 0},
 		{"Method", true, false, "*Service", 1, 1},
 	}
 
@@ -106,6 +109,15 @@ func (s *Service) Method(ctx context.Context) error {
 			t.Errorf("function %s: expected %d returns, got %d", fn.Name, tt.retCount, len(fn.Returns))
 		}
 	}
+
+	variadic := ctx.Functions[2]
+	lastParam := variadic.Parameters[1]
+	if !lastParam.IsVariadic {
+		t.Fatalf("expected args parameter to be variadic")
+	}
+	if lastParam.Type != "...any" {
+		t.Fatalf("expected args parameter type ...any, got %q", lastParam.Type)
+	}
 }
 
 func TestTransformTypes(t *testing.T) {
@@ -119,6 +131,7 @@ type UserService struct {
 type Repository interface {
 	Get(id string) (User, error)
 	Create(user User) error
+	Logf(format string, args ...any)
 }
 
 type ID = string
@@ -162,8 +175,16 @@ type ID = string
 	}
 
 	repo := ctx.Types[1]
-	if len(repo.Methods) != 2 {
-		t.Fatalf("Repository: expected 2 methods, got %d", len(repo.Methods))
+	if len(repo.Methods) != 3 {
+		t.Fatalf("Repository: expected 3 methods, got %d", len(repo.Methods))
+	}
+	logf := repo.Methods[2]
+	lastParam := logf.Parameters[1]
+	if !lastParam.IsVariadic {
+		t.Fatalf("Repository.Logf: expected args parameter to be variadic")
+	}
+	if lastParam.Type != "...any" {
+		t.Fatalf("Repository.Logf: expected args parameter type ...any, got %q", lastParam.Type)
 	}
 }
 
@@ -650,6 +671,80 @@ func score() int {
 	}
 	if ctx.Literals[0].InFunction != "score" {
 		t.Fatalf("expected literal in score, got %q", ctx.Literals[0].InFunction)
+	}
+}
+
+func TestTransformCompositeLiterals(t *testing.T) {
+	src := `package example
+
+type User struct {
+	Name string
+}
+
+var defaultUser = User{}
+
+func build() {
+	_ = User{Name: "a"}
+	_ = []string{"a"}
+	_ = map[string]int{"a": 1}
+}
+`
+	ctx := transformSource(t, src)
+
+	if len(ctx.CompositeLiterals) != 4 {
+		t.Fatalf("expected 4 composite literals, got %d: %#v", len(ctx.CompositeLiterals), ctx.CompositeLiterals)
+	}
+
+	defaultUser := ctx.CompositeLiterals[0]
+	if defaultUser.Type != "User" || defaultUser.TypeKind != "unknown" || defaultUser.InFunction != "" {
+		t.Fatalf("expected package-level User literal, got %#v", defaultUser)
+	}
+
+	user := ctx.CompositeLiterals[1]
+	if user.Type != "User" || user.InFunction != "build" {
+		t.Fatalf("expected build User literal, got %#v", user)
+	}
+	if len(user.Fields) != 1 || user.Fields[0] != "Name" {
+		t.Fatalf("expected User literal field Name, got %#v", user.Fields)
+	}
+
+	slice := ctx.CompositeLiterals[2]
+	if slice.Type != "[]string" || slice.TypeKind != "slice" || slice.InFunction != "build" {
+		t.Fatalf("expected build []string slice literal, got %#v", slice)
+	}
+
+	mapLit := ctx.CompositeLiterals[3]
+	if mapLit.Type != "map[string]int" || mapLit.TypeKind != "map" || mapLit.InFunction != "build" {
+		t.Fatalf("expected build map literal, got %#v", mapLit)
+	}
+	if len(mapLit.Fields) != 0 {
+		t.Fatalf("expected map literal fields to be empty, got %#v", mapLit.Fields)
+	}
+}
+
+func TestBuildPackageContextAggregatesCompositeLiterals(t *testing.T) {
+	files := []*model.CodeContext{
+		{
+			ModulePath: "example.com/mod",
+			Package: model.PackageInfo{
+				Name: "example",
+				Path: "example.com/mod/example",
+			},
+			CompositeLiterals: []model.CompositeLiteralInfo{{Type: "User"}},
+			TypeUsages:        []model.TypeUsageInfo{{TypeName: "User"}},
+			FieldAccess:       []model.FieldAccessInfo{{Field: "Name"}},
+		},
+	}
+
+	pkg := transformer.BuildPackageContext(files)
+	if len(pkg.AllCompositeLiterals) != 1 {
+		t.Fatalf("expected 1 package composite literal, got %d", len(pkg.AllCompositeLiterals))
+	}
+	if len(pkg.AllTypeUsages) != 1 {
+		t.Fatalf("expected 1 package type usage, got %d", len(pkg.AllTypeUsages))
+	}
+	if len(pkg.AllFieldAccesses) != 1 {
+		t.Fatalf("expected 1 package field access, got %d", len(pkg.AllFieldAccesses))
 	}
 }
 

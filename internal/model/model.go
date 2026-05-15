@@ -2,35 +2,36 @@ package model
 
 // CodeContext is the root structure passed to Rego policies for evaluation.
 type CodeContext struct {
-	FilePath         string            `json:"file_path"`
-	ModulePath       string            `json:"module_path"`
-	Package          PackageInfo       `json:"package"`
-	Imports          []ImportInfo      `json:"imports"`
-	Functions        []FunctionInfo    `json:"functions"`
-	Types            []TypeInfo        `json:"types"`
-	Variables        []VariableInfo    `json:"variables"`
-	Constants        []VariableInfo    `json:"constants"`
-	Lines            []LineInfo        `json:"lines,omitempty"`
-	Comments         []CommentInfo     `json:"comments,omitempty"`
-	Literals         []LiteralInfo     `json:"literals,omitempty"`
-	Returns          []ReturnInfo      `json:"returns,omitempty"`
-	Ifs              []IfInfo          `json:"ifs,omitempty"`
-	TypeAssertions   []TypeAssertInfo  `json:"type_assertions,omitempty"`
-	MakeSlices       []MakeSliceInfo   `json:"make_slices,omitempty"`
-	Appends          []AppendInfo      `json:"appends,omitempty"`
-	ResourceAcquires []ResourceInfo    `json:"resource_acquires,omitempty"`
-	ResourceCloses   []ResourceClose   `json:"resource_closes,omitempty"`
-	ResourceErrs     []ResourceErr     `json:"resource_errs,omitempty"`
-	Subtests         []SubtestInfo     `json:"subtests,omitempty"`
-	RangeLoops       []RangeLoopInfo   `json:"range_loops,omitempty"`
-	LoopVarCopies    []LoopVarCopyInfo `json:"loop_var_copies,omitempty"`
-	BlankAssignments []BlankAssignInfo `json:"blank_assignments,omitempty"`
-	DeclGroups       []DeclGroupInfo   `json:"decl_groups,omitempty"`
-	Declarations     []DeclInfo        `json:"declarations,omitempty"`
-	Calls            []CallInfo        `json:"calls"`
-	TypeUsages       []TypeUsageInfo   `json:"type_usages"`
-	FieldAccess      []FieldAccessInfo `json:"field_accesses"`
-	Nolints          []NolintDirective `json:"nolints,omitempty"`
+	FilePath          string                 `json:"file_path"`
+	ModulePath        string                 `json:"module_path"`
+	Package           PackageInfo            `json:"package"`
+	Imports           []ImportInfo           `json:"imports"`
+	Functions         []FunctionInfo         `json:"functions"`
+	Types             []TypeInfo             `json:"types"`
+	Variables         []VariableInfo         `json:"variables"`
+	Constants         []VariableInfo         `json:"constants"`
+	Lines             []LineInfo             `json:"lines,omitempty"`
+	Comments          []CommentInfo          `json:"comments,omitempty"`
+	Literals          []LiteralInfo          `json:"literals,omitempty"`
+	CompositeLiterals []CompositeLiteralInfo `json:"composite_literals,omitempty"`
+	Returns           []ReturnInfo           `json:"returns,omitempty"`
+	Ifs               []IfInfo               `json:"ifs,omitempty"`
+	TypeAssertions    []TypeAssertInfo       `json:"type_assertions,omitempty"`
+	MakeSlices        []MakeSliceInfo        `json:"make_slices,omitempty"`
+	Appends           []AppendInfo           `json:"appends,omitempty"`
+	ResourceAcquires  []ResourceInfo         `json:"resource_acquires,omitempty"`
+	ResourceCloses    []ResourceClose        `json:"resource_closes,omitempty"`
+	ResourceErrs      []ResourceErr          `json:"resource_errs,omitempty"`
+	Subtests          []SubtestInfo          `json:"subtests,omitempty"`
+	RangeLoops        []RangeLoopInfo        `json:"range_loops,omitempty"`
+	LoopVarCopies     []LoopVarCopyInfo      `json:"loop_var_copies,omitempty"`
+	BlankAssignments  []BlankAssignInfo      `json:"blank_assignments,omitempty"`
+	DeclGroups        []DeclGroupInfo        `json:"decl_groups,omitempty"`
+	Declarations      []DeclInfo             `json:"declarations,omitempty"`
+	Calls             []CallInfo             `json:"calls"`
+	TypeUsages        []TypeUsageInfo        `json:"type_usages"`
+	FieldAccess       []FieldAccessInfo      `json:"field_accesses"`
+	Nolints           []NolintDirective      `json:"nolints,omitempty"`
 }
 
 // DeclInfo represents a top-level declaration in source order.
@@ -70,6 +71,16 @@ type LiteralInfo struct {
 	Value      string   `json:"value"`
 	InFunction string   `json:"in_function,omitempty"`
 	Position   Position `json:"position"`
+}
+
+// CompositeLiteralInfo represents a composite literal expression.
+type CompositeLiteralInfo struct {
+	Type         string   `json:"type"`
+	TypeIdentity string   `json:"type_identity,omitempty"`
+	TypeKind     string   `json:"type_kind,omitempty"`
+	Fields       []string `json:"fields,omitempty"`
+	InFunction   string   `json:"in_function,omitempty"`
+	Position     Position `json:"position"`
 }
 
 // ReturnInfo represents a return statement.
@@ -205,8 +216,10 @@ type ImportInfo struct {
 
 // ParameterInfo represents a function parameter or return value.
 type ParameterInfo struct {
-	Name string `json:"name,omitempty"`
-	Type string `json:"type"`
+	Name         string `json:"name,omitempty"`
+	Type         string `json:"type"`
+	TypeIdentity string `json:"type_identity,omitempty"`
+	IsVariadic   bool   `json:"is_variadic,omitempty"`
 }
 
 // FunctionInfo represents a function or method declaration.
@@ -228,12 +241,13 @@ type FunctionInfo struct {
 
 // FieldInfo represents a struct field.
 type FieldInfo struct {
-	Name       string   `json:"name"`
-	Type       string   `json:"type"`
-	Tags       string   `json:"tags,omitempty"`
-	IsExported bool     `json:"is_exported"`
-	IsEmbedded bool     `json:"is_embedded"`
-	Position   Position `json:"position"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	TypeIdentity string   `json:"type_identity,omitempty"`
+	Tags         string   `json:"tags,omitempty"`
+	IsExported   bool     `json:"is_exported"`
+	IsEmbedded   bool     `json:"is_embedded"`
+	Position     Position `json:"position"`
 }
 
 // MethodInfo represents a method signature in an interface or struct.
@@ -333,30 +347,33 @@ type FixEdit struct {
 
 // PackageContext aggregates CodeContext from all files in a package.
 type PackageContext struct {
-	ModulePath          string            `json:"module_path"`
-	Package             PackageInfo       `json:"package"`
-	Files               []CodeContext     `json:"files"`
-	AllImports          []ImportInfo      `json:"all_imports"`
-	AllFunctions        []FunctionInfo    `json:"all_functions"`
-	AllTypes            []TypeInfo        `json:"all_types"`
-	AllVariables        []VariableInfo    `json:"all_variables"`
-	AllConstants        []VariableInfo    `json:"all_constants"`
-	AllLines            []LineInfo        `json:"all_lines"`
-	AllComments         []CommentInfo     `json:"all_comments"`
-	AllLiterals         []LiteralInfo     `json:"all_literals"`
-	AllReturns          []ReturnInfo      `json:"all_returns"`
-	AllIfs              []IfInfo          `json:"all_ifs"`
-	AllTypeAssertions   []TypeAssertInfo  `json:"all_type_assertions"`
-	AllMakeSlices       []MakeSliceInfo   `json:"all_make_slices"`
-	AllAppends          []AppendInfo      `json:"all_appends"`
-	AllResourceAcquires []ResourceInfo    `json:"all_resource_acquires"`
-	AllResourceCloses   []ResourceClose   `json:"all_resource_closes"`
-	AllResourceErrs     []ResourceErr     `json:"all_resource_errs"`
-	AllSubtests         []SubtestInfo     `json:"all_subtests"`
-	AllRangeLoops       []RangeLoopInfo   `json:"all_range_loops"`
-	AllLoopVarCopies    []LoopVarCopyInfo `json:"all_loop_var_copies"`
-	AllBlankAssignments []BlankAssignInfo `json:"all_blank_assignments"`
-	AllDeclGroups       []DeclGroupInfo   `json:"all_decl_groups"`
-	AllDeclarations     []DeclInfo        `json:"all_declarations"`
-	AllCalls            []CallInfo        `json:"all_calls"`
+	ModulePath           string                 `json:"module_path"`
+	Package              PackageInfo            `json:"package"`
+	Files                []CodeContext          `json:"files"`
+	AllImports           []ImportInfo           `json:"all_imports"`
+	AllFunctions         []FunctionInfo         `json:"all_functions"`
+	AllTypes             []TypeInfo             `json:"all_types"`
+	AllVariables         []VariableInfo         `json:"all_variables"`
+	AllConstants         []VariableInfo         `json:"all_constants"`
+	AllLines             []LineInfo             `json:"all_lines"`
+	AllComments          []CommentInfo          `json:"all_comments"`
+	AllLiterals          []LiteralInfo          `json:"all_literals"`
+	AllCompositeLiterals []CompositeLiteralInfo `json:"all_composite_literals"`
+	AllReturns           []ReturnInfo           `json:"all_returns"`
+	AllIfs               []IfInfo               `json:"all_ifs"`
+	AllTypeAssertions    []TypeAssertInfo       `json:"all_type_assertions"`
+	AllMakeSlices        []MakeSliceInfo        `json:"all_make_slices"`
+	AllAppends           []AppendInfo           `json:"all_appends"`
+	AllResourceAcquires  []ResourceInfo         `json:"all_resource_acquires"`
+	AllResourceCloses    []ResourceClose        `json:"all_resource_closes"`
+	AllResourceErrs      []ResourceErr          `json:"all_resource_errs"`
+	AllSubtests          []SubtestInfo          `json:"all_subtests"`
+	AllRangeLoops        []RangeLoopInfo        `json:"all_range_loops"`
+	AllLoopVarCopies     []LoopVarCopyInfo      `json:"all_loop_var_copies"`
+	AllBlankAssignments  []BlankAssignInfo      `json:"all_blank_assignments"`
+	AllDeclGroups        []DeclGroupInfo        `json:"all_decl_groups"`
+	AllDeclarations      []DeclInfo             `json:"all_declarations"`
+	AllCalls             []CallInfo             `json:"all_calls"`
+	AllTypeUsages        []TypeUsageInfo        `json:"all_type_usages"`
+	AllFieldAccesses     []FieldAccessInfo      `json:"all_field_accesses"`
 }

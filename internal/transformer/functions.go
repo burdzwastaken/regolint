@@ -235,14 +235,22 @@ func (t *Transformer) extractParams(fields *ast.FieldList) []model.ParameterInfo
 
 	for _, field := range fields.List {
 		typeStr := t.formatType(field.Type)
+		typeIdentity := t.typeIdentity(field.Type)
+		_, isVariadic := field.Type.(*ast.Ellipsis)
 
 		if len(field.Names) == 0 {
-			params = append(params, model.ParameterInfo{Type: typeStr})
+			params = append(params, model.ParameterInfo{
+				Type:         typeStr,
+				TypeIdentity: typeIdentity,
+				IsVariadic:   isVariadic,
+			})
 		} else {
 			for _, name := range field.Names {
 				params = append(params, model.ParameterInfo{
-					Name: name.Name,
-					Type: typeStr,
+					Name:         name.Name,
+					Type:         typeStr,
+					TypeIdentity: typeIdentity,
+					IsVariadic:   isVariadic,
 				})
 			}
 		}

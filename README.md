@@ -164,40 +164,44 @@ Policies receive either a single-file `CodeContext` or package-wide `PackageCont
 
 Common `CodeContext` fields:
 
-| Field               | Description                                |
-|---------------------|--------------------------------------------|
-| `file_path`         | Absolute path to the source file           |
-| `module_path`       | Go module path                             |
-| `package`           | Package name, path and doc                 |
-| `imports`           | Import declarations                        |
-| `functions`         | Function and method declarations           |
-| `types`             | Type declarations                          |
-| `variables`         | Package-level variables                    |
-| `constants`         | Constants                                  |
-| `calls`             | Function and method calls                  |
-| `comments`          | Source comments                            |
-| `nolints`           | `nolint` suppression directives            |
-| `range_loops`       | Range loop metadata                        |
-| `resource_acquires` | Resource-producing assignments             |
-| `resource_closes`   | Resource close calls                       |
-| `resource_errs`     | Resource error-check calls                 |
-| `subtests`          | Subtest callback metadata                  |
+| Field                  | Description                       |
+|------------------------|-----------------------------------|
+| `file_path`            | Absolute path to the source file  |
+| `module_path`          | Go module path                    |
+| `package`              | Package name, path and doc        |
+| `imports`              | Import declarations               |
+| `functions`            | Function and method declarations  |
+| `types`                | Type declarations                 |
+| `variables`            | Package-level variables           |
+| `constants`            | Constants                         |
+| `calls`                | Function and method calls         |
+| `comments`             | Source comments                   |
+| `literals`             | Literal expressions               |
+| `composite_literals`   | Composite literal expressions     |
+| `nolints`              | `nolint` suppression directives   |
+| `range_loops`          | Range loop metadata               |
+| `resource_acquires`    | Resource-producing assignments    |
+| `resource_closes`      | Resource close calls              |
+| `resource_errs`        | Resource error-check calls        |
+| `subtests`             | Subtest callback metadata         |
 
 Common `PackageContext` fields:
 
-| Field                   | Description                            |
-|-------------------------|----------------------------------------|
-| `module_path`           | Go module path                         |
-| `package`               | Package name, path and doc             |
-| `files`                 | All `CodeContext` objects              |
-| `all_imports`           | Deduplicated imports across files      |
-| `all_functions`         | All functions across files             |
-| `all_types`             | All types across files                 |
-| `all_variables`         | All variables across files             |
-| `all_constants`         | All constants across files             |
-| `all_comments`          | All comments across files              |
-| `all_calls`             | All calls across files                 |
-| `all_resource_acquires` | All resource acquisitions across files |
+| Field                    | Description                            |
+|--------------------------|----------------------------------------|
+| `module_path`            | Go module path                         |
+| `package`                | Package name, path and doc             |
+| `files`                  | All `CodeContext` objects              |
+| `all_imports`            | Deduplicated imports across files      |
+| `all_functions`          | All functions across files             |
+| `all_types`              | All types across files                 |
+| `all_variables`          | All variables across files             |
+| `all_constants`          | All constants across files             |
+| `all_comments`           | All comments across files              |
+| `all_literals`           | All literals across files              |
+| `all_composite_literals` | All composite literals across files    |
+| `all_calls`              | All calls across files                 |
+| `all_resource_acquires`  | All resource acquisitions across files |
 
 Useful built-ins:
 

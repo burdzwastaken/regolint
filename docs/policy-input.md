@@ -4,37 +4,38 @@ regolint policies receive structured Go source metadata. Single-file policies re
 
 ## CodeContext schema
 
-| Field               | Type   | Description                                  |
-|---------------------|--------|----------------------------------------------|
-| `file_path`         | string | Absolute path to the source file             |
-| `module_path`       | string | Go module path                               |
-| `package`           | object | Package name, path and doc                   |
-| `imports`           | array  | Import declarations                          |
-| `functions`         | array  | Function and method declarations             |
-| `types`             | array  | Type declarations (struct, interface, alias) |
-| `variables`         | array  | Package-level variables                      |
-| `constants`         | array  | Constants                                    |
-| `lines`             | array  | Source line metadata                         |
-| `comments`          | array  | Source comments                              |
-| `literals`          | array  | Literal expressions                          |
-| `returns`           | array  | Return statements                            |
-| `ifs`               | array  | If statements and direct returns             |
-| `type_assertions`   | array  | Type assertion expressions                   |
-| `make_slices`       | array  | Slice make expressions assigned to targets   |
-| `appends`           | array  | Append calls assigned to targets             |
-| `resource_acquires` | array  | Resource-producing assignments               |
-| `resource_closes`   | array  | Resource close calls                         |
-| `resource_errs`     | array  | Resource error-check calls                   |
-| `subtests`          | array  | Subtest callback metadata                    |
-| `range_loops`       | array  | Range loop metadata                          |
-| `loop_var_copies`   | array  | Redundant range loop variable copies         |
-| `blank_assignments` | array  | Assignments containing blank identifiers     |
-| `decl_groups`       | array  | Top-level declaration groups                 |
-| `declarations`      | array  | Top-level declarations in source order       |
-| `calls`             | array  | Function and method calls                    |
-| `type_usages`       | array  | References to types                          |
-| `field_accesses`    | array  | Field access expressions                     |
-| `nolints`           | array  | nolint suppression directives                |
+| Field                  | Type   | Description                                  |
+|------------------------|--------|----------------------------------------------|
+| `file_path`            | string | Absolute path to the source file             |
+| `module_path`          | string | Go module path                               |
+| `package`              | object | Package name, path and doc                   |
+| `imports`              | array  | Import declarations                          |
+| `functions`            | array  | Function and method declarations             |
+| `types`                | array  | Type declarations (struct, interface, alias) |
+| `variables`            | array  | Package-level variables                      |
+| `constants`            | array  | Constants                                    |
+| `lines`                | array  | Source line metadata                         |
+| `comments`             | array  | Source comments                              |
+| `literals`             | array  | Literal expressions                          |
+| `composite_literals`   | array  | Composite literal expressions                |
+| `returns`              | array  | Return statements                            |
+| `ifs`                  | array  | If statements and direct returns             |
+| `type_assertions`      | array  | Type assertion expressions                   |
+| `make_slices`          | array  | Slice make expressions assigned to targets   |
+| `appends`              | array  | Append calls assigned to targets             |
+| `resource_acquires`    | array  | Resource-producing assignments               |
+| `resource_closes`      | array  | Resource close calls                         |
+| `resource_errs`        | array  | Resource error-check calls                   |
+| `subtests`             | array  | Subtest callback metadata                    |
+| `range_loops`          | array  | Range loop metadata                          |
+| `loop_var_copies`      | array  | Redundant range loop variable copies         |
+| `blank_assignments`    | array  | Assignments containing blank identifiers     |
+| `decl_groups`          | array  | Top-level declaration groups                 |
+| `declarations`         | array  | Top-level declarations in source order       |
+| `calls`                | array  | Function and method calls                    |
+| `type_usages`          | array  | References to types                          |
+| `field_accesses`       | array  | Field access expressions                     |
+| `nolints`              | array  | nolint suppression directives                |
 
 ## Type reference
 
@@ -63,6 +64,15 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `position`      | object  | Source location                            |
 | `comments`      | array   | Doc comments                               |
 | `annotations`   | object  | Parsed annotations from comments           |
+
+### ParameterInfo (`input.functions[].parameters[]`, `input.functions[].returns[]`)
+
+| Field           | Type    | Description                                                 |
+|-----------------|---------|-------------------------------------------------------------|
+| `name`          | string  | Parameter or return value name                              |
+| `type`          | string  | Rendered type                                               |
+| `type_identity` | string  | Optional semantic type string, or syntactic type fallback   |
+| `is_variadic`   | boolean | Optional marker for variadic function parameters            |
 
 ### TypeInfo (`input.types[]`)
 
@@ -103,6 +113,17 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `value`       | string | Literal source text                                     |
 | `in_function` | string | Function containing this literal                        |
 | `position`    | object | Source location (`file`, `line`, `column`)              |
+
+### CompositeLiteralInfo (`input.composite_literals[]`)
+
+| Field           | Type   | Description                                               |
+|-----------------|--------|-----------------------------------------------------------|
+| `type`          | string | Rendered literal type                                     |
+| `type_identity` | string | Optional semantic type string, or syntactic type fallback |
+| `type_kind`     | string | Optional type kind                                        |
+| `fields`        | array  | Optional field names assigned in the literal              |
+| `in_function`   | string | Optional function containing this literal                 |
+| `position`      | object | Source location (`file`, `line`, `column`)                |
 
 ### ReturnInfo (`input.returns[]`)
 
@@ -247,14 +268,15 @@ regolint policies receive structured Go source metadata. Single-file policies re
 
 ### FieldInfo (`input.types[].fields[]`)
 
-| Field         | Type    | Description                            |
-|---------------|---------|----------------------------------------|
-| `name`        | string  | Field name                             |
-| `type`        | string  | Field type                             |
-| `tags`        | string  | Struct tags (e.g., `` `json:"foo" ``) |
-| `is_exported` | boolean | Whether field is exported              |
-| `is_embedded` | boolean | Whether field is an embedded type      |
-| `position`    | object  | Source location                        |
+| Field           | Type    | Description                                               |
+|-----------------|---------|-----------------------------------------------------------|
+| `name`          | string  | Field name                                                |
+| `type`          | string  | Field type                                                |
+| `type_identity` | string  | Optional semantic type string, or syntactic type fallback |
+| `tags`          | string  | Struct tags (e.g., `` `json:"foo" ``)                    |
+| `is_exported`   | boolean | Whether field is exported                                 |
+| `is_embedded`   | boolean | Whether field is an embedded type                         |
+| `position`      | object  | Source location                                           |
 
 ### VariableInfo (`input.variables[]`, `input.constants[]`)
 
@@ -314,34 +336,37 @@ regolint policies receive structured Go source metadata. Single-file policies re
 
 ## PackageContext schema
 
-| Field                   | Type   | Description                                 |
-|-------------------------|--------|---------------------------------------------|
-| `module_path`           | string | Go module path                              |
-| `package`               | object | Package name, path and doc                  |
-| `files`                 | array  | All CodeContext objects in the package      |
-| `all_imports`           | array  | Deduplicated imports across all files       |
-| `all_functions`         | array  | All functions across all files              |
-| `all_types`             | array  | All types across all files                  |
-| `all_variables`         | array  | All variables across all files              |
-| `all_constants`         | array  | All constants across all files              |
-| `all_lines`             | array  | All source lines across all files           |
-| `all_comments`          | array  | All comments across all files               |
-| `all_literals`          | array  | All literals across all files               |
-| `all_returns`           | array  | All return statements across all files      |
-| `all_ifs`               | array  | All if statements across all files          |
-| `all_type_assertions`   | array  | All type assertions across all files        |
-| `all_make_slices`       | array  | All slice make expressions across all files |
-| `all_appends`           | array  | All append calls across all files           |
-| `all_resource_acquires` | array  | All resource acquisitions across all files  |
-| `all_resource_closes`   | array  | All resource close calls across all files   |
-| `all_resource_errs`     | array  | All resource error checks across all files  |
-| `all_subtests`          | array  | All subtests across all files               |
-| `all_range_loops`       | array  | All range loops across all files            |
-| `all_loop_var_copies`   | array  | All loop variable copies across all files   |
-| `all_blank_assignments` | array  | All blank assignments across all files      |
-| `all_decl_groups`       | array  | All declaration groups across all files     |
-| `all_declarations`      | array  | All declarations across all files           |
-| `all_calls`             | array  | All calls across all files                  |
+| Field                    | Type   | Description                                 |
+|--------------------------|--------|---------------------------------------------|
+| `module_path`            | string | Go module path                              |
+| `package`                | object | Package name, path and doc                  |
+| `files`                  | array  | All CodeContext objects in the package      |
+| `all_imports`            | array  | Deduplicated imports across all files       |
+| `all_functions`          | array  | All functions across all files              |
+| `all_types`              | array  | All types across all files                  |
+| `all_variables`          | array  | All variables across all files              |
+| `all_constants`          | array  | All constants across all files              |
+| `all_lines`              | array  | All source lines across all files           |
+| `all_comments`           | array  | All comments across all files               |
+| `all_literals`           | array  | All literals across all files               |
+| `all_composite_literals` | array  | All composite literals across all files     |
+| `all_returns`            | array  | All return statements across all files      |
+| `all_ifs`                | array  | All if statements across all files          |
+| `all_type_assertions`    | array  | All type assertions across all files        |
+| `all_make_slices`        | array  | All slice make expressions across all files |
+| `all_appends`            | array  | All append calls across all files           |
+| `all_resource_acquires`  | array  | All resource acquisitions across all files  |
+| `all_resource_closes`    | array  | All resource close calls across all files   |
+| `all_resource_errs`      | array  | All resource error checks across all files  |
+| `all_subtests`           | array  | All subtests across all files               |
+| `all_range_loops`        | array  | All range loops across all files            |
+| `all_loop_var_copies`    | array  | All loop variable copies across all files   |
+| `all_blank_assignments`  | array  | All blank assignments across all files      |
+| `all_decl_groups`        | array  | All declaration groups across all files     |
+| `all_declarations`       | array  | All declarations across all files           |
+| `all_calls`              | array  | All calls across all files                  |
+| `all_type_usages`        | array  | All type usages across all files            |
+| `all_field_accesses`     | array  | All field accesses across all files         |
 
 ## Custom built-ins
 

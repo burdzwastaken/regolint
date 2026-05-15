@@ -38,37 +38,39 @@ func (t *Transformer) Transform(file *ast.File, filePath string) *model.CodeCont
 			Path: t.pkg.Pkg.Path(),
 			Doc:  extractDoc(file.Doc),
 		},
-		Imports:          make([]model.ImportInfo, 0),
-		Functions:        make([]model.FunctionInfo, 0),
-		Types:            make([]model.TypeInfo, 0),
-		Variables:        make([]model.VariableInfo, 0),
-		Constants:        make([]model.VariableInfo, 0),
-		Lines:            make([]model.LineInfo, 0),
-		Comments:         make([]model.CommentInfo, 0),
-		Literals:         make([]model.LiteralInfo, 0),
-		Returns:          make([]model.ReturnInfo, 0),
-		Ifs:              make([]model.IfInfo, 0),
-		TypeAssertions:   make([]model.TypeAssertInfo, 0),
-		MakeSlices:       make([]model.MakeSliceInfo, 0),
-		Appends:          make([]model.AppendInfo, 0),
-		ResourceAcquires: make([]model.ResourceInfo, 0),
-		ResourceCloses:   make([]model.ResourceClose, 0),
-		ResourceErrs:     make([]model.ResourceErr, 0),
-		Subtests:         make([]model.SubtestInfo, 0),
-		RangeLoops:       make([]model.RangeLoopInfo, 0),
-		LoopVarCopies:    make([]model.LoopVarCopyInfo, 0),
-		BlankAssignments: make([]model.BlankAssignInfo, 0),
-		DeclGroups:       make([]model.DeclGroupInfo, 0),
-		Declarations:     make([]model.DeclInfo, 0),
-		Calls:            make([]model.CallInfo, 0),
-		TypeUsages:       make([]model.TypeUsageInfo, 0),
-		FieldAccess:      make([]model.FieldAccessInfo, 0),
+		Imports:           make([]model.ImportInfo, 0),
+		Functions:         make([]model.FunctionInfo, 0),
+		Types:             make([]model.TypeInfo, 0),
+		Variables:         make([]model.VariableInfo, 0),
+		Constants:         make([]model.VariableInfo, 0),
+		Lines:             make([]model.LineInfo, 0),
+		Comments:          make([]model.CommentInfo, 0),
+		Literals:          make([]model.LiteralInfo, 0),
+		CompositeLiterals: make([]model.CompositeLiteralInfo, 0),
+		Returns:           make([]model.ReturnInfo, 0),
+		Ifs:               make([]model.IfInfo, 0),
+		TypeAssertions:    make([]model.TypeAssertInfo, 0),
+		MakeSlices:        make([]model.MakeSliceInfo, 0),
+		Appends:           make([]model.AppendInfo, 0),
+		ResourceAcquires:  make([]model.ResourceInfo, 0),
+		ResourceCloses:    make([]model.ResourceClose, 0),
+		ResourceErrs:      make([]model.ResourceErr, 0),
+		Subtests:          make([]model.SubtestInfo, 0),
+		RangeLoops:        make([]model.RangeLoopInfo, 0),
+		LoopVarCopies:     make([]model.LoopVarCopyInfo, 0),
+		BlankAssignments:  make([]model.BlankAssignInfo, 0),
+		DeclGroups:        make([]model.DeclGroupInfo, 0),
+		Declarations:      make([]model.DeclInfo, 0),
+		Calls:             make([]model.CallInfo, 0),
+		TypeUsages:        make([]model.TypeUsageInfo, 0),
+		FieldAccess:       make([]model.FieldAccessInfo, 0),
 	}
 
 	ctx.Imports = t.extractImports(file)
 	ctx.Lines = t.extractLines(filePath, file)
 	ctx.Comments = t.extractCommentGroups(file)
 	ctx.Nolints = t.extractNolints(file)
+	ctx.CompositeLiterals = append(ctx.CompositeLiterals, t.extractPackageCompositeLiterals(file)...)
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
@@ -81,6 +83,7 @@ func (t *Transformer) Transform(file *ast.File, filePath string) *model.CodeCont
 				Position: t.position(node.Pos()),
 			})
 			ctx.Literals = append(ctx.Literals, t.extractLiterals(node.Body, fn.Name)...)
+			ctx.CompositeLiterals = append(ctx.CompositeLiterals, t.extractFunctionCompositeLiterals(node.Body, fn.Name)...)
 			ctx.Returns = append(ctx.Returns, t.extractReturns(node.Body, fn.Name, fn.Receiver)...)
 			ctx.Ifs = append(ctx.Ifs, t.extractIfs(node.Body, fn.Name, fn.Receiver)...)
 			ctx.TypeAssertions = append(ctx.TypeAssertions, t.extractTypeAssertions(node.Body, fn.Name)...)
