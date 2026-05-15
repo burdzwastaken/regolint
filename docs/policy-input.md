@@ -36,6 +36,7 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `type_usages`          | array  | References to types                          |
 | `field_accesses`       | array  | Field access expressions                     |
 | `nolints`              | array  | nolint suppression directives                |
+| `rule_options`         | object | Configured options keyed by rule             |
 
 ## Type reference
 
@@ -367,6 +368,7 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `all_calls`              | array  | All calls across all files                  |
 | `all_type_usages`        | array  | All type usages across all files            |
 | `all_field_accesses`     | array  | All field accesses across all files         |
+| `rule_options`           | object | Configured options keyed by rule            |
 
 ## Custom built-ins
 

@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
-	"github.com/bmatcuk/doublestar/v4"
+	"github.com/burdzwastaken/regolint/internal/config"
 	"github.com/burdzwastaken/regolint/internal/evaluator"
 	"github.com/burdzwastaken/regolint/internal/model"
 	"github.com/burdzwastaken/regolint/internal/nolint"
@@ -32,6 +30,7 @@ var (
 
 var (
 	policyDir   = flag.String("policy-dir", "./policies", "directory containing .rego policy files") // nolint:gochecknoglobals,lll
+	configPath  = flag.String("config", "", "optional regolint YAML config file")                    // nolint:gochecknoglobals,lll
 	disabled    = flag.String("disabled", "", "comma-separated list of rule IDs to disable")         // nolint:gochecknoglobals,lll
 	exclude     = flag.String("exclude", "", "comma-separated list of file patterns to exclude")     // nolint:gochecknoglobals,lll
 	format      = flag.String("format", "text", "output format: text, json, sarif")                  // nolint:gochecknoglobals,lll
@@ -66,7 +65,12 @@ func main() {
 }
 
 func run() error {
-	policies, err := loadPolicies(*policyDir)
+	cfg, err := buildConfig()
+	if err != nil {
+		return err
+	}
+
+	policies, err := cfg.LoadPolicies()
 	if err != nil {
 		return fmt.Errorf("loading policies: %w", err)
 	}
@@ -87,13 +91,10 @@ func run() error {
 		return fmt.Errorf("loading packages: %w", err)
 	}
 
-	disabledRules := parseList(*disabled)
-	excludePatterns := parseList(*exclude)
-
 	var allViolations []model.Violation
 
 	for _, pkg := range pkgs {
-		violations, err := analyzePackage(pkg, eval, pkg.PkgPath, disabledRules, excludePatterns)
+		violations, err := analyzePackage(pkg, eval, pkg.PkgPath, cfg)
 		if err != nil {
 			return err
 		}
@@ -109,43 +110,34 @@ func run() error {
 	return nil
 }
 
-func loadPolicies(dir string) (map[string]string, error) {
-	policies := make(map[string]string)
-
-	root, err := os.OpenRoot(dir)
-	if os.IsNotExist(err) {
-		return policies, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		_ = root.Close()
-	}()
-
-	err = fs.WalkDir(root.FS(), ".", func(path string, d fs.DirEntry, err error) error {
+func buildConfig() (*config.Config, error) {
+	var cfg *config.Config
+	if *configPath != "" {
+		loaded, err := config.Load(*configPath)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if d.IsDir() {
-			return nil
-		}
-		if filepath.Ext(path) != ".rego" {
-			return nil
-		}
-		if strings.HasSuffix(path, "_test.rego") {
-			return nil
-		}
+		cfg = loaded
+	} else {
+		cfg = config.Default()
+		cfg.Policies.Directory = "./policies"
+		cfg.Exclude = nil
+	}
 
-		content, err := root.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("reading %s: %w", path, err)
-		}
-		policies[filepath.Join(dir, path)] = string(content)
-		return nil
-	})
+	if *policyDir != "./policies" || *configPath == "" {
+		cfg.Policies.Directory = *policyDir
+	}
+	if *disabled != "" {
+		cfg.Rules.Disabled = parseList(*disabled)
+	}
+	if *exclude != "" {
+		cfg.Exclude = parseList(*exclude)
+	}
+	if *format != "text" {
+		cfg.Output.Format = *format
+	}
 
-	return policies, err
+	return cfg, nil
 }
 
 func parseList(s string) []string {
@@ -175,7 +167,7 @@ func analyzePackage(
 	pkg *packages.Package,
 	eval *evaluator.Evaluator,
 	modulePath string,
-	disabledRules, excludePatterns []string,
+	cfg *config.Config,
 ) ([]model.Violation, error) {
 	var violations []model.Violation
 	var codeContexts []*model.CodeContext
@@ -191,7 +183,7 @@ func analyzePackage(
 	nolintsByFile := make(map[string][]model.NolintDirective)
 
 	for _, filePath := range pkg.GoFiles {
-		if shouldSkip(filePath, excludePatterns) {
+		if cfg.ShouldSkip(filePath) {
 			continue
 		}
 
@@ -201,6 +193,7 @@ func analyzePackage(
 		}
 
 		codeCtx := trans.Transform(file, filePath)
+		codeCtx.RuleOptions = cfg.Rules.Options
 		codeContexts = append(codeContexts, codeCtx)
 		nolintsByFile[filepath.Base(filePath)] = codeCtx.Nolints
 
@@ -222,7 +215,7 @@ func analyzePackage(
 
 		var filtered []model.Violation
 		for _, v := range fileViolations {
-			if !isDisabled(v.Rule, disabledRules) {
+			if !cfg.IsRuleDisabled(v.Rule) {
 				v.Position.File = filePath
 				filtered = append(filtered, v)
 			}
@@ -244,7 +237,7 @@ func analyzePackage(
 	}
 
 	for _, v := range packageViolations {
-		if isDisabled(v.Rule, disabledRules) {
+		if cfg.IsRuleDisabled(v.Rule) {
 			continue
 		}
 
@@ -268,20 +261,6 @@ func packageFilePath(baseName string, codeContexts []*model.CodeContext) string 
 		}
 	}
 	return baseName
-}
-
-func shouldSkip(filePath string, patterns []string) bool {
-	for _, pattern := range patterns {
-		matched, err := doublestar.Match(pattern, filePath)
-		if err == nil && matched {
-			return true
-		}
-	}
-	return false
-}
-
-func isDisabled(rule string, disabled []string) bool {
-	return slices.Contains(disabled, rule)
 }
 
 func outputResults(violations []model.Violation) error {

@@ -27,3 +27,8 @@ test_uses_input_alias_configuration if {
 	violations := importas.deny with input as {"import_aliases": {"example.com/pkg/v2": "pkgv2"}, "imports": [{"path": "example.com/pkg/v2", "alias": "wrong", "position": {"line": 4}}]}
 	count(violations) == 1
 }
+
+test_uses_rule_options_alias_configuration if {
+	violations := importas.deny with input as {"rule_options": {"importas": {"aliases": {"example.com/pkg/v2": "pkgv2"}}}, "imports": [{"path": "example.com/pkg/v2", "alias": "wrong", "position": {"line": 4}}]}
+	count(violations) == 1
+}

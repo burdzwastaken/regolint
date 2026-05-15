@@ -93,10 +93,19 @@ linters:
             - ./extra/security.rego
           disabled:
             - musttag
+          options:
+            builderonly:
+              types:
+                - ClientConfig
+                - example.com/project.ServerConfig
+              allowed_functions:
+                - NewClientConfigBuilder
           exclude:
             - "**/vendor/**"
             - "**/*_test.go"
 ```
+
+Configured rule options are available to Rego policies at `input.rule_options.<rule>`. For example, the `builderonly` policy reads `input.rule_options.builderonly.types` and `input.rule_options.builderonly.allowed_functions`.
 
 Run with the custom binary:
 
@@ -184,6 +193,7 @@ Common `CodeContext` fields:
 | `resource_closes`      | Resource close calls              |
 | `resource_errs`        | Resource error-check calls        |
 | `subtests`             | Subtest callback metadata         |
+| `rule_options`         | Configured options keyed by rule  |
 
 Common `PackageContext` fields:
 
@@ -202,6 +212,7 @@ Common `PackageContext` fields:
 | `all_composite_literals` | All composite literals across files    |
 | `all_calls`              | All calls across files                 |
 | `all_resource_acquires`  | All resource acquisitions across files |
+| `rule_options`           | Configured options keyed by rule       |
 
 Useful built-ins:
 

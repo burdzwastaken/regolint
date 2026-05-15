@@ -318,3 +318,50 @@ deny contains violation if {
 		t.Errorf("expected column 8, got %d", v.Position.Column)
 	}
 }
+
+func TestEvaluatorBuilderOnlyRuleOptions(t *testing.T) {
+	policy := `package regolint.rules.style.builderonly
+
+metadata := {"id": "builderonly", "severity": "warning"}
+
+builderonly_options := object.get(object.get(input, "rule_options", {}), "builderonly", {})
+builder_only_types := object.get(builderonly_options, "types", [])
+
+deny contains violation if {
+	some lit in input.composite_literals
+	lit.type in builder_only_types
+	violation := {
+		"message": sprintf("use a builder instead of direct %s literal", [lit.type]),
+		"position": lit.position,
+		"rule": metadata.id,
+		"severity": metadata.severity,
+	}
+}
+`
+
+	eval, err := evaluator.New(map[string]string{"builderonly.rego": policy})
+	if err != nil {
+		t.Fatalf("creating evaluator: %v", err)
+	}
+
+	input := &model.CodeContext{
+		RuleOptions: map[string]map[string]any{
+			"builderonly": {"types": []string{"ClientConfig"}},
+		},
+		CompositeLiterals: []model.CompositeLiteralInfo{
+			{Type: "ClientConfig", Position: model.Position{Line: 10}},
+		},
+	}
+
+	violations, err := eval.Evaluate(context.Background(), input)
+	if err != nil {
+		t.Fatalf("evaluating: %v", err)
+	}
+
+	if len(violations) != 1 {
+		t.Fatalf("expected 1 builderonly violation, got %d", len(violations))
+	}
+	if violations[0].Rule != "builderonly" {
+		t.Fatalf("rule = %q, want builderonly", violations[0].Rule)
+	}
+}

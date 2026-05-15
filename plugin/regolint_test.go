@@ -135,6 +135,22 @@ func TestRegolintPlugin_buildConfig(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "rule options",
+			settings: Settings{
+				Options: map[string]map[string]any{
+					"builderonly": {
+						"types": []string{"ClientConfig"},
+					},
+				},
+			},
+			check: func(t *testing.T, p *RegolintPlugin) {
+				cfg := p.buildConfig()
+				if cfg.Rules.Options["builderonly"]["types"] == nil {
+					t.Fatal("expected builderonly types option")
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {

@@ -25,10 +25,11 @@ const (
 
 // Settings mirrors config options for golangci-lint integration.
 type Settings struct {
-	PolicyDir   string   `json:"policy-dir"`   // nolint:tagliatelle
-	PolicyFiles []string `json:"policy-files"` // nolint:tagliatelle
-	Disabled    []string `json:"disabled"`
-	Exclude     []string `json:"exclude"`
+	PolicyDir   string                    `json:"policy-dir"`   // nolint:tagliatelle
+	PolicyFiles []string                  `json:"policy-files"` // nolint:tagliatelle
+	Disabled    []string                  `json:"disabled"`
+	Exclude     []string                  `json:"exclude"`
+	Options     map[string]map[string]any `json:"options"`
 }
 
 // RegolintPlugin implements register.LinterPlugin.
@@ -104,6 +105,7 @@ func (p *RegolintPlugin) BuildAnalyzers() ([]*analysis.Analyzer, error) {
 				}
 
 				codeCtx := trans.Transform(file, filePath)
+				codeCtx.RuleOptions = cfg.Rules.Options
 				codeContexts = append(codeContexts, codeCtx)
 				baseName := filepath.Base(filePath)
 				filesByName[baseName] = file
@@ -186,6 +188,10 @@ func (p *RegolintPlugin) buildConfig() *config.Config {
 
 	if len(p.settings.Disabled) > 0 {
 		cfg.Rules.Disabled = p.settings.Disabled
+	}
+
+	if len(p.settings.Options) > 0 {
+		cfg.Rules.Options = p.settings.Options
 	}
 
 	if len(p.settings.Exclude) > 0 {

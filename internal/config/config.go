@@ -41,8 +41,9 @@ type RemotePolicy struct {
 // RulesConfig allows rule customization.
 // nolint:musttag // uses yaml tags
 type RulesConfig struct {
-	Disabled []string          `yaml:"disabled"`
-	Severity map[string]string `yaml:"severity"`
+	Disabled []string                  `yaml:"disabled"`
+	Severity map[string]string         `yaml:"severity"`
+	Options  map[string]map[string]any `yaml:"options"`
 }
 
 // OutputConfig controls output formatting.

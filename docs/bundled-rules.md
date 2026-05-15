@@ -41,6 +41,7 @@ Status meanings:
 | SQL          | `sql/sqlclosecheck`               | `sqlclosecheck`             | Heuristic | Checks common SQL rows/statement close patterns.       |
 | Structs      | `structs/tags`                    | `musttag`                   | Full      | Ensures exported fields have required tags.            |
 | Style        | `style/asciicheck`                | `asciicheck`                | Partial   | Checks exposed identifier facts for non-ASCII text.    |
+| Style        | `style/builderonly`               | `builderonly`               | Full      | Checks configured types use builders for construction.  |
 | Style        | `style/canonicalheader`           | `canonicalheader`           | Heuristic | Checks known HTTP header literals.                     |
 | Style        | `style/containedctx`              | `containedctx`              | Heuristic | Checks syntactic `context.Context` struct fields.      |
 | Style        | `style/copyloopvar`               | `copyloopvar`               | Partial   | Checks redundant range loop variable copies.           |

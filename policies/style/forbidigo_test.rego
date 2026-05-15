@@ -32,6 +32,14 @@ test_detects_forbidden_call if {
 	count(violations) == 1
 }
 
+test_detects_rule_options_forbidden_call if {
+	violations := forbidigo.deny with input as {
+		"rule_options": {"forbidigo": {"calls": ["fmt.Println"]}},
+		"calls": [{"package": "fmt", "function": "Println", "position": {"line": 8}}],
+	}
+	count(violations) == 1
+}
+
 test_detects_forbidden_receiver_call if {
 	violations := forbidigo.deny with input as {
 		"forbidden_calls": ["logger.Debug"],

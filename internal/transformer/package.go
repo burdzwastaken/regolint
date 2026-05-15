@@ -11,6 +11,7 @@ func BuildPackageContext(files []*model.CodeContext) *model.PackageContext {
 
 	pkg := &model.PackageContext{
 		ModulePath:           files[0].ModulePath,
+		RuleOptions:          files[0].RuleOptions,
 		Package:              files[0].Package,
 		Files:                make([]model.CodeContext, 0, len(files)),
 		AllImports:           make([]model.ImportInfo, 0),

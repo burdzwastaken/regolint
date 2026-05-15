@@ -6,7 +6,9 @@ metadata := {
 	"description": "Checks source file headers against a configured pattern",
 }
 
-required_pattern := object.get(input, "required_header_pattern", "")
+goheader_options := object.get(object.get(input, "rule_options", {}), "goheader", {})
+
+required_pattern := object.get(goheader_options, "required_pattern", object.get(input, "required_header_pattern", ""))
 
 first_comment_line := min([comment.position.line | some comment in input.comments])
 

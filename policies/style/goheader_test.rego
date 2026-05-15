@@ -13,6 +13,11 @@ test_detects_header_mismatch if {
 	count(violations) == 1
 }
 
+test_detects_rule_options_header_mismatch if {
+	violations := goheader.deny with input as {"rule_options": {"goheader": {"required_pattern": "Copyright"}}, "comments": [{"text": "Package docs.", "position": {"line": 1}}]}
+	count(violations) == 1
+}
+
 test_allows_matching_header if {
 	violations := goheader.deny with input as {"required_header_pattern": "Copyright", "comments": [{"text": "Copyright 2026 Example", "position": {"line": 1}}]}
 	count(violations) == 0

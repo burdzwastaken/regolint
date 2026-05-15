@@ -726,6 +726,9 @@ func TestBuildPackageContextAggregatesCompositeLiterals(t *testing.T) {
 	files := []*model.CodeContext{
 		{
 			ModulePath: "example.com/mod",
+			RuleOptions: map[string]map[string]any{
+				"builderonly": {"types": []string{"User"}},
+			},
 			Package: model.PackageInfo{
 				Name: "example",
 				Path: "example.com/mod/example",
@@ -745,6 +748,9 @@ func TestBuildPackageContextAggregatesCompositeLiterals(t *testing.T) {
 	}
 	if len(pkg.AllFieldAccesses) != 1 {
 		t.Fatalf("expected 1 package field access, got %d", len(pkg.AllFieldAccesses))
+	}
+	if pkg.RuleOptions["builderonly"]["types"] == nil {
+		t.Fatal("expected package rule options to be aggregated")
 	}
 }
 

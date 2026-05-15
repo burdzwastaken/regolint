@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -121,5 +123,37 @@ func TestIsRuleDisabled(t *testing.T) {
 				t.Errorf("IsRuleDisabled(%q) = %v, want %v", tt.rule, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestLoadRuleOptions(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "regolint.yml")
+	data := []byte(`rules:
+  options:
+    builderonly:
+      types:
+        - ClientConfig
+      allowed_functions:
+        - NewClientConfigBuilder
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("writing config: %v", err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("loading config: %v", err)
+	}
+
+	options := cfg.Rules.Options["builderonly"]
+	if options == nil {
+		t.Fatal("expected builderonly options")
+	}
+	if got := options["types"].([]any)[0]; got != "ClientConfig" {
+		t.Fatalf("type option = %v, want ClientConfig", got)
+	}
+	if got := options["allowed_functions"].([]any)[0]; got != "NewClientConfigBuilder" {
+		t.Fatalf("allowed function option = %v, want NewClientConfigBuilder", got)
 	}
 }

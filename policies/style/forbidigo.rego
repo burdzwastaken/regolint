@@ -12,17 +12,25 @@ default_forbidden_calls := {"log.Fatal"}
 
 default_forbidden_strings := {"changeme", "password"}
 
+forbidigo_options := object.get(object.get(input, "rule_options", {}), "forbidigo", {})
+
+configured_forbidden_identifiers := object.get(forbidigo_options, "identifiers", object.get(input, "forbidden_identifiers", []))
+
+configured_forbidden_calls := object.get(forbidigo_options, "calls", object.get(input, "forbidden_calls", []))
+
+configured_forbidden_strings := object.get(forbidigo_options, "strings", object.get(input, "forbidden_strings", []))
+
 forbidden_identifier(name) if name in default_forbidden_identifiers
 
-forbidden_identifier(name) if name in object.get(input, "forbidden_identifiers", [])
+forbidden_identifier(name) if name in configured_forbidden_identifiers
 
 forbidden_call(name) if name in default_forbidden_calls
 
-forbidden_call(name) if name in object.get(input, "forbidden_calls", [])
+forbidden_call(name) if name in configured_forbidden_calls
 
 forbidden_string(value) if value in default_forbidden_strings
 
-forbidden_string(value) if value in object.get(input, "forbidden_strings", [])
+forbidden_string(value) if value in configured_forbidden_strings
 
 call_name(call) := name if {
 	call.package != ""

@@ -14,7 +14,9 @@ expected_aliases := {
 	"k8s.io/apimachinery/pkg/api/errors": "apierrors",
 }
 
-configured_aliases := object.get(input, "import_aliases", {})
+importas_options := object.get(object.get(input, "rule_options", {}), "importas", {})
+
+configured_aliases := object.get(importas_options, "aliases", object.get(input, "import_aliases", {}))
 
 alias_for(path) := alias if alias := configured_aliases[path]
 
