@@ -73,6 +73,7 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `name`          | string  | Parameter or return value name                              |
 | `type`          | string  | Rendered type                                               |
 | `type_identity` | string  | Optional semantic type string, or syntactic type fallback   |
+| `type_ref`      | object  | Optional structured type reference (see TypeRef)            |
 | `is_variadic`   | boolean | Optional marker for variadic function parameters            |
 
 ### TypeInfo (`input.types[]`)
@@ -121,6 +122,7 @@ regolint policies receive structured Go source metadata. Single-file policies re
 |-----------------|--------|-----------------------------------------------------------|
 | `type`          | string | Rendered literal type                                     |
 | `type_identity` | string | Optional semantic type string, or syntactic type fallback |
+| `type_ref`      | object | Optional structured type reference (see TypeRef)          |
 | `type_kind`     | string | Optional type kind                                        |
 | `fields`        | array  | Optional field names assigned in the literal              |
 | `in_function`   | string | Optional function containing this literal                 |
@@ -274,10 +276,28 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `name`          | string  | Field name                                                |
 | `type`          | string  | Field type                                                |
 | `type_identity` | string  | Optional semantic type string, or syntactic type fallback |
+| `type_ref`      | object  | Optional structured type reference (see TypeRef)          |
 | `tags`          | string  | Struct tags (e.g., `` `json:"foo" ``)                    |
 | `is_exported`   | boolean | Whether field is exported                                 |
 | `is_embedded`   | boolean | Whether field is an embedded type                         |
 | `position`      | object  | Source location                                           |
+
+### TypeRef (`type_ref`)
+
+`type_ref` is an additive structured view of a Go type for policies that need semantic matching without parsing `type` or `type_identity` strings. It is currently emitted for function parameters and returns, struct fields and composite literals.
+
+| Field          | Type   | Description                                                          |
+|----------------|--------|----------------------------------------------------------------------|
+| `kind`         | string | Type shape (`named`, `builtin`, `pointer`, `slice`, `array`, `map`, `chan`, `func`, `interface`, `struct`, `unknown`) |
+| `display`      | string | Human-readable/source-like type                                      |
+| `identity`     | string | Canonical semantic type identity when available                      |
+| `source`       | string | `semantic` when derived from Go type info, otherwise `syntactic`     |
+| `name`         | string | Type name for named, builtin and type-parameter-like refs            |
+| `package_name` | string | Declaring package name for named refs                                |
+| `package_path` | string | Declaring package import path for named refs                         |
+| `elem`         | object | Element type for pointers, slices, arrays and channels               |
+| `key`          | object | Map key type                                                         |
+| `value`        | object | Map value type                                                       |
 
 ### VariableInfo (`input.variables[]`, `input.constants[]`)
 

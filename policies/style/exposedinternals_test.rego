@@ -134,3 +134,86 @@ test_uses_legacy_configuration if {
 	}
 	count(violations) == 1
 }
+
+test_detects_nested_type_ref_parameter if {
+	violations := exposedinternals.deny with input as {
+		"rule_options": {"exposedinternals": {"forbidden_types": ["example.com/project/internal/store.Store"]}},
+		"functions": [{
+			"name": "NewService",
+			"is_exported": true,
+			"parameters": [{
+				"name": "stores",
+				"type": "map[string]*store.Store",
+				"type_ref": {
+					"kind": "map",
+					"key": {"kind": "builtin", "identity": "string", "name": "string"},
+					"value": {
+						"kind": "pointer",
+						"elem": {
+							"kind": "named",
+							"identity": "example.com/project/internal/store.Store",
+							"package_path": "example.com/project/internal/store",
+							"name": "Store",
+						},
+					},
+				},
+			}],
+		}],
+	}
+	count(violations) == 1
+}
+
+test_detects_nested_type_ref_package_pattern if {
+	violations := exposedinternals.deny with input as {
+		"rule_options": {"exposedinternals": {"forbidden_type_patterns": ["/internal/"]}},
+		"functions": [{
+			"name": "Stores",
+			"is_exported": true,
+			"returns": [{
+				"type": "[]store.Store",
+				"type_ref": {
+					"kind": "slice",
+					"elem": {
+						"kind": "named",
+						"identity": "example.com/project/internal/store.Store",
+						"package_path": "example.com/project/internal/store",
+						"name": "Store",
+					},
+				},
+			}],
+		}],
+	}
+	count(violations) == 1
+}
+
+test_allowed_nested_type_ref_does_not_exempt_forbidden_sibling if {
+	violations := exposedinternals.deny with input as {
+		"rule_options": {"exposedinternals": {
+			"forbidden_type_patterns": ["/internal/"],
+			"allowed_types": ["example.com/project/internal/store.PublicSnapshot"],
+		}},
+		"functions": [{
+			"name": "Stores",
+			"is_exported": true,
+			"returns": [{
+				"type": "map[store.PublicSnapshot]store.Store",
+				"type_ref": {
+					"kind": "map",
+					"key": {
+						"kind": "named",
+						"identity": "example.com/project/internal/store.PublicSnapshot",
+						"package_path": "example.com/project/internal/store",
+						"name": "PublicSnapshot",
+					},
+					"value": {
+						"kind": "named",
+						"identity": "example.com/project/internal/store.Store",
+						"package_path": "example.com/project/internal/store",
+						"name": "Store",
+					},
+				},
+			}],
+		}],
+	}
+	count(violations) == 1
+}

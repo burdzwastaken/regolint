@@ -44,6 +44,7 @@ func (t *Transformer) extractStructFields(st *ast.StructType) ([]model.FieldInfo
 	for _, field := range st.Fields.List {
 		typeStr := t.formatType(field.Type)
 		typeIdentity := t.typeIdentity(field.Type)
+		typeRef := t.typeRef(field.Type)
 
 		if len(field.Names) == 0 {
 			embeds = append(embeds, typeStr)
@@ -51,6 +52,7 @@ func (t *Transformer) extractStructFields(st *ast.StructType) ([]model.FieldInfo
 				Name:         typeStr,
 				Type:         typeStr,
 				TypeIdentity: typeIdentity,
+				TypeRef:      typeRef,
 				IsEmbedded:   true,
 				Position:     t.position(field.Pos()),
 				Tags:         extractTags(field.Tag),
@@ -63,6 +65,7 @@ func (t *Transformer) extractStructFields(st *ast.StructType) ([]model.FieldInfo
 				Name:         name.Name,
 				Type:         typeStr,
 				TypeIdentity: typeIdentity,
+				TypeRef:      typeRef,
 				IsExported:   isExported(name.Name),
 				Position:     t.position(name.Pos()),
 				Tags:         extractTags(field.Tag),

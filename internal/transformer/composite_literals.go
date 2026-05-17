@@ -54,6 +54,7 @@ func (t *Transformer) compositeLiteralInfo(lit *ast.CompositeLit, inFunction str
 	return model.CompositeLiteralInfo{
 		Type:         t.formatType(lit.Type),
 		TypeIdentity: t.typeIdentity(lit.Type),
+		TypeRef:      t.typeRef(lit.Type),
 		TypeKind:     compositeLiteralTypeKind(lit.Type),
 		Fields:       compositeLiteralFields(lit),
 		InFunction:   inFunction,

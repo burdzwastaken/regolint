@@ -78,10 +78,25 @@ type LiteralInfo struct {
 type CompositeLiteralInfo struct {
 	Type         string   `json:"type"`
 	TypeIdentity string   `json:"type_identity,omitempty"`
+	TypeRef      *TypeRef `json:"type_ref,omitempty"`
 	TypeKind     string   `json:"type_kind,omitempty"`
 	Fields       []string `json:"fields,omitempty"`
 	InFunction   string   `json:"in_function,omitempty"`
 	Position     Position `json:"position"`
+}
+
+// TypeRef represents a structured type reference for policy matching.
+type TypeRef struct {
+	Kind        string   `json:"kind"`
+	Display     string   `json:"display,omitempty"`
+	Identity    string   `json:"identity,omitempty"`
+	Source      string   `json:"source,omitempty"`
+	Name        string   `json:"name,omitempty"`
+	PackageName string   `json:"package_name,omitempty"`
+	PackagePath string   `json:"package_path,omitempty"`
+	Elem        *TypeRef `json:"elem,omitempty"`
+	Key         *TypeRef `json:"key,omitempty"`
+	Value       *TypeRef `json:"value,omitempty"`
 }
 
 // ReturnInfo represents a return statement.
@@ -217,10 +232,11 @@ type ImportInfo struct {
 
 // ParameterInfo represents a function parameter or return value.
 type ParameterInfo struct {
-	Name         string `json:"name,omitempty"`
-	Type         string `json:"type"`
-	TypeIdentity string `json:"type_identity,omitempty"`
-	IsVariadic   bool   `json:"is_variadic,omitempty"`
+	Name         string   `json:"name,omitempty"`
+	Type         string   `json:"type"`
+	TypeIdentity string   `json:"type_identity,omitempty"`
+	TypeRef      *TypeRef `json:"type_ref,omitempty"`
+	IsVariadic   bool     `json:"is_variadic,omitempty"`
 }
 
 // FunctionInfo represents a function or method declaration.
@@ -245,6 +261,7 @@ type FieldInfo struct {
 	Name         string   `json:"name"`
 	Type         string   `json:"type"`
 	TypeIdentity string   `json:"type_identity,omitempty"`
+	TypeRef      *TypeRef `json:"type_ref,omitempty"`
 	Tags         string   `json:"tags,omitempty"`
 	IsExported   bool     `json:"is_exported"`
 	IsEmbedded   bool     `json:"is_embedded"`

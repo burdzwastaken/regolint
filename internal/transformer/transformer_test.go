@@ -1290,6 +1290,126 @@ func process(items []string, ch <-chan string) {
 	}
 }
 
+func TestTypeIdentityUsesTypesInfoForFunctionParameters(t *testing.T) {
+	src := `package example
+
+import "database/sql"
+
+type UserID string
+
+func NewStore(db *sql.DB, id UserID, byName map[string]*sql.DB) {}
+`
+	ctx := transformTypedSource(t, src)
+
+	fn := findFunction(t, ctx, "NewStore")
+	if len(fn.Parameters) != 3 {
+		t.Fatalf("expected 3 parameters, got %d", len(fn.Parameters))
+	}
+
+	if fn.Parameters[0].Type != "*sql.DB" {
+		t.Fatalf("expected syntactic sql parameter type, got %q", fn.Parameters[0].Type)
+	}
+	if fn.Parameters[0].TypeIdentity != "*database/sql.DB" {
+		t.Fatalf("expected semantic sql parameter identity, got %q", fn.Parameters[0].TypeIdentity)
+	}
+
+	if fn.Parameters[1].Type != "UserID" {
+		t.Fatalf("expected syntactic local parameter type, got %q", fn.Parameters[1].Type)
+	}
+	if fn.Parameters[1].TypeIdentity == "" || fn.Parameters[1].TypeIdentity == "UserID" {
+		t.Fatalf("expected semantic local parameter identity, got %q", fn.Parameters[1].TypeIdentity)
+	}
+	if !strings.HasSuffix(fn.Parameters[1].TypeIdentity, ".UserID") {
+		t.Fatalf("expected local parameter identity to include UserID, got %q", fn.Parameters[1].TypeIdentity)
+	}
+
+	dbRef := fn.Parameters[0].TypeRef
+	if dbRef == nil || dbRef.Kind != "pointer" {
+		t.Fatalf("expected pointer type_ref for db, got %#v", dbRef)
+	}
+	if dbRef.Elem == nil || dbRef.Elem.PackagePath != "database/sql" || dbRef.Elem.Name != "DB" {
+		t.Fatalf("expected sql.DB elem type_ref, got %#v", dbRef.Elem)
+	}
+	if dbRef.Identity != "*database/sql.DB" {
+		t.Fatalf("expected pointer identity, got %q", dbRef.Identity)
+	}
+
+	mapRef := fn.Parameters[2].TypeRef
+	if mapRef == nil || mapRef.Kind != "map" {
+		t.Fatalf("expected map type_ref, got %#v", mapRef)
+	}
+	if mapRef.Key == nil || mapRef.Key.Kind != "builtin" || mapRef.Key.Name != "string" {
+		t.Fatalf("expected string key type_ref, got %#v", mapRef.Key)
+	}
+	if mapRef.Value == nil || mapRef.Value.Kind != "pointer" || mapRef.Value.Elem == nil || mapRef.Value.Elem.PackagePath != "database/sql" {
+		t.Fatalf("expected pointer sql.DB value type_ref, got %#v", mapRef.Value)
+	}
+}
+
+func TestTypeIdentityUsesTypesInfoForFieldsAndCompositeLiterals(t *testing.T) {
+	src := `package example
+
+import "time"
+
+type Local struct{}
+
+type Event struct {
+	When time.Time
+	Ref  *Local
+}
+
+func Build() {
+	_ = time.Time{}
+	_ = Local{}
+}
+`
+	ctx := transformTypedSource(t, src)
+
+	eventType := findType(t, ctx, "Event")
+	if len(eventType.Fields) != 2 {
+		t.Fatalf("expected 2 fields, got %d", len(eventType.Fields))
+	}
+
+	if eventType.Fields[0].Type != "time.Time" {
+		t.Fatalf("expected syntactic time field type, got %q", eventType.Fields[0].Type)
+	}
+	if eventType.Fields[0].TypeIdentity != "time.Time" {
+		t.Fatalf("expected semantic time field identity, got %q", eventType.Fields[0].TypeIdentity)
+	}
+
+	if eventType.Fields[1].Type != "*Local" {
+		t.Fatalf("expected syntactic local pointer field type, got %q", eventType.Fields[1].Type)
+	}
+	if eventType.Fields[1].TypeIdentity == "" || eventType.Fields[1].TypeIdentity == "*Local" {
+		t.Fatalf("expected semantic local pointer field identity, got %q", eventType.Fields[1].TypeIdentity)
+	}
+	if !strings.HasSuffix(eventType.Fields[1].TypeIdentity, ".Local") {
+		t.Fatalf("expected local pointer field identity to include Local, got %q", eventType.Fields[1].TypeIdentity)
+	}
+	if eventType.Fields[1].TypeRef == nil || eventType.Fields[1].TypeRef.Kind != "pointer" {
+		t.Fatalf("expected local pointer field type_ref, got %#v", eventType.Fields[1].TypeRef)
+	}
+	if eventType.Fields[1].TypeRef.Elem == nil || eventType.Fields[1].TypeRef.Elem.PackagePath != "example.com/regolinttest" || eventType.Fields[1].TypeRef.Elem.Name != "Local" {
+		t.Fatalf("expected local field elem type_ref, got %#v", eventType.Fields[1].TypeRef.Elem)
+	}
+
+	timeLiteral := findCompositeLiteral(t, ctx, "time.Time")
+	if timeLiteral.TypeIdentity != "time.Time" {
+		t.Fatalf("expected semantic time composite literal identity, got %q", timeLiteral.TypeIdentity)
+	}
+
+	localLiteral := findCompositeLiteral(t, ctx, "Local")
+	if localLiteral.TypeIdentity == "" || localLiteral.TypeIdentity == "Local" {
+		t.Fatalf("expected semantic local composite literal identity, got %q", localLiteral.TypeIdentity)
+	}
+	if !strings.HasSuffix(localLiteral.TypeIdentity, ".Local") {
+		t.Fatalf("expected local composite literal identity to include Local, got %q", localLiteral.TypeIdentity)
+	}
+	if localLiteral.TypeRef == nil || localLiteral.TypeRef.Kind != "named" || localLiteral.TypeRef.PackagePath != "example.com/regolinttest" || localLiteral.TypeRef.Name != "Local" {
+		t.Fatalf("expected local composite literal type_ref, got %#v", localLiteral.TypeRef)
+	}
+}
+
 func transformSource(t *testing.T, src string) *model.CodeContext {
 	t.Helper()
 	return transformSourceWithFilename(t, src, "test.go")
@@ -1329,4 +1449,80 @@ func transformSourceWithFilename(t *testing.T, src, fileName string) *model.Code
 
 	trans := transformer.New(pass, "github.com/test/example")
 	return trans.Transform(file, fileName)
+}
+
+func transformTypedSource(t *testing.T, src string) *model.CodeContext {
+	t.Helper()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/regolinttest\n\ngo 1.25\n"), 0o600); err != nil {
+		t.Fatalf("writing go.mod: %v", err)
+	}
+	filePath := filepath.Join(dir, "test.go")
+	if err := os.WriteFile(filePath, []byte(src), 0o600); err != nil {
+		t.Fatalf("writing source: %v", err)
+	}
+
+	cfg := &packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
+			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
+			packages.NeedTypesSizes,
+		Dir: dir,
+	}
+	pkgs, err := packages.Load(cfg, ".")
+	if err != nil {
+		t.Fatalf("loading package: %v", err)
+	}
+	if packages.PrintErrors(pkgs) > 0 {
+		t.Fatalf("loading package reported errors")
+	}
+	if len(pkgs) != 1 {
+		t.Fatalf("expected one package, got %d", len(pkgs))
+	}
+	pkg := pkgs[0]
+	if len(pkg.Syntax) != 1 {
+		t.Fatalf("expected one syntax file, got %d", len(pkg.Syntax))
+	}
+
+	pass := &analysis.Pass{
+		Fset:      pkg.Fset,
+		Pkg:       pkg.Types,
+		TypesInfo: pkg.TypesInfo,
+	}
+
+	trans := transformer.New(pass, "example.com/regolinttest")
+	return trans.Transform(pkg.Syntax[0], filePath)
+}
+
+func findFunction(t *testing.T, ctx *model.CodeContext, name string) model.FunctionInfo {
+	t.Helper()
+	for _, fn := range ctx.Functions {
+		if fn.Name == name {
+			return fn
+		}
+	}
+	t.Fatalf("function %q not found", name)
+	return model.FunctionInfo{}
+}
+
+func findType(t *testing.T, ctx *model.CodeContext, name string) model.TypeInfo {
+	t.Helper()
+	for _, typ := range ctx.Types {
+		if typ.Name == name {
+			return typ
+		}
+	}
+	t.Fatalf("type %q not found", name)
+	return model.TypeInfo{}
+}
+
+func findCompositeLiteral(t *testing.T, ctx *model.CodeContext, typeName string) model.CompositeLiteralInfo {
+	t.Helper()
+	for _, lit := range ctx.CompositeLiterals {
+		if lit.Type == typeName {
+			return lit
+		}
+	}
+	t.Fatalf("composite literal %q not found", typeName)
+	return model.CompositeLiteralInfo{}
 }

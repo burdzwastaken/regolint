@@ -28,32 +28,87 @@ configured if count(forbidden_type_patterns) > 0
 
 allowed_function(fn) if fn.name in allowed_functions
 
-allowed_type(ref) if {
+allowed_type_candidate(candidate) if {
 	some type_name in allowed_types
-	type_matches(ref, type_name)
+	type_matches(candidate, type_name)
 }
 
-forbidden_type(ref) if {
+forbidden_type_candidate(candidate) if {
 	some type_name in forbidden_types
-	type_matches(ref, type_name)
+	type_matches(candidate, type_name)
 }
 
-forbidden_type(ref) if {
+forbidden_type_candidate(candidate) if {
 	some pattern in forbidden_type_patterns
-	type_pattern_matches(ref, pattern)
+	type_pattern_matches(candidate, pattern)
 }
 
 type_matches(ref, type_name) if ref.type == type_name
 
 type_matches(ref, type_name) if object.get(ref, "type_identity", "") == type_name
 
+type_matches(ref, type_name) if object.get(ref, "identity", "") == type_name
+
+type_matches(ref, type_name) if object.get(ref, "display", "") == type_name
+
+type_matches(ref, type_name) if {
+	object.get(ref, "package_path", "") != ""
+	sprintf("%s.%s", [ref.package_path, ref.name]) == type_name
+}
+
 type_pattern_matches(ref, pattern) if regex.match(pattern, ref.type)
 
 type_pattern_matches(ref, pattern) if regex.match(pattern, object.get(ref, "type_identity", ""))
 
+type_pattern_matches(ref, pattern) if regex.match(pattern, object.get(ref, "identity", ""))
+
+type_pattern_matches(ref, pattern) if regex.match(pattern, object.get(ref, "display", ""))
+
+type_pattern_matches(ref, pattern) if regex.match(pattern, object.get(ref, "package_path", ""))
+
 exposed_internal(ref) if {
-	forbidden_type(ref)
-	not allowed_type(ref)
+	forbidden_type_candidate(ref)
+	not allowed_type_candidate(ref)
+}
+
+exposed_internal(ref) if {
+	root := object.get(ref, "type_ref", {})
+	type_ref_node_exposed(root)
+}
+
+exposed_internal(ref) if {
+	root := object.get(ref, "type_ref", {})
+	some child in type_ref_children(root)
+	type_ref_node_exposed(child)
+}
+
+exposed_internal(ref) if {
+	root := object.get(ref, "type_ref", {})
+	some child in type_ref_children(root)
+	some grandchild in type_ref_children(child)
+	type_ref_node_exposed(grandchild)
+}
+
+exposed_internal(ref) if {
+	root := object.get(ref, "type_ref", {})
+	some child in type_ref_children(root)
+	some grandchild in type_ref_children(child)
+	some great_grandchild in type_ref_children(grandchild)
+	type_ref_node_exposed(great_grandchild)
+}
+
+type_ref_node_exposed(node) if {
+	object.get(node, "kind", "") != ""
+	forbidden_type_candidate(node)
+	not allowed_type_candidate(node)
+}
+
+type_ref_children(node) := children if {
+	children := [child |
+		some field in ["elem", "key", "value"]
+		child := object.get(node, field, {})
+		object.get(child, "kind", "") != ""
+	]
 }
 
 deny contains violation if {

@@ -6,8 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"go/parser"
-	"go/token"
+	"go/ast"
 	"os"
 	"path/filepath"
 	"strings"
@@ -157,7 +156,8 @@ func parseList(s string) []string {
 func loadPackages(patterns []string) ([]*packages.Package, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
-			packages.NeedTypes | packages.NeedTypesInfo,
+			packages.NeedCompiledGoFiles | packages.NeedTypes | packages.NeedTypesInfo |
+			packages.NeedTypesSizes,
 	}
 	return packages.Load(cfg, patterns...)
 }
@@ -172,24 +172,19 @@ func analyzePackage(
 	var violations []model.Violation
 	var codeContexts []*model.CodeContext
 
-	fset := token.NewFileSet()
-
 	pass := &analysis.Pass{
-		Fset: fset,
-		Pkg:  pkg.Types,
+		Fset:      pkg.Fset,
+		Pkg:       pkg.Types,
+		TypesInfo: pkg.TypesInfo,
 	}
 
 	trans := transformer.New(pass, modulePath)
 	nolintsByFile := make(map[string][]model.NolintDirective)
 
-	for _, filePath := range pkg.GoFiles {
+	for i, file := range pkg.Syntax {
+		filePath := syntaxFilePath(pkg, i, file)
 		if cfg.ShouldSkip(filePath) {
 			continue
-		}
-
-		file, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", filePath, err)
 		}
 
 		codeCtx := trans.Transform(file, filePath)
@@ -252,6 +247,22 @@ func analyzePackage(
 	}
 
 	return violations, nil
+}
+
+func syntaxFilePath(pkg *packages.Package, index int, file *ast.File) string {
+	if index < len(pkg.CompiledGoFiles) {
+		return pkg.CompiledGoFiles[index]
+	}
+
+	if index < len(pkg.GoFiles) {
+		return pkg.GoFiles[index]
+	}
+
+	if file != nil && pkg.Fset != nil {
+		return pkg.Fset.Position(file.Pos()).Filename
+	}
+
+	return ""
 }
 
 func packageFilePath(baseName string, codeContexts []*model.CodeContext) string {
