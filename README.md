@@ -296,6 +296,26 @@ Useful built-ins:
 
 Full schema reference: [docs/policy-input.md](docs/policy-input.md).
 
+Bundled helper libraries can be imported from `data.regolint.lib.*`. The `type_ref` helper keeps type-aware policies concise:
+
+```rego
+import data.regolint.lib.type_ref
+
+deny contains violation if {
+    some fn in input.functions
+    some param in fn.parameters
+    type_ref.exposes(param, [], ["/internal/"], [])
+
+    violation := {
+        "message": sprintf("%s exposes an internal type", [fn.name]),
+        "position": fn.position,
+        "rule": "nointernalapi",
+    }
+}
+```
+
+Useful helpers include `type_ref.matches`, `type_ref.pattern_matches`, `type_ref.is_named`, `type_ref.children` and `type_ref.exposes`.
+
 ## Examples
 
 ### Banned imports

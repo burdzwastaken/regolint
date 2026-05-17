@@ -398,3 +398,21 @@ regolint policies receive structured Go source metadata. Single-file policies re
 | `go.is_exported(name)`           | Check if identifier is exported       |
 | `go.is_test_file(filename)`      | Check if file is a test file          |
 | `go.package_name(import_path)`   | Extract package name from import path |
+
+## Bundled helper libraries
+
+Bundled policies include helper libraries under `data.regolint.lib.*`. They are loaded with the bundled policy directory and can be imported by custom rules.
+
+| Helper package              | Description                                               |
+|-----------------------------|-----------------------------------------------------------|
+| `data.regolint.lib.type_ref` | Helpers for matching and traversing `type_ref` metadata. |
+
+`type_ref` helpers:
+
+| Helper                   | Description                                                                       |
+|--------------------------|-----------------------------------------------------------------------------------|
+| `matches(ref, name)`     | Matches legacy `type`, `type_identity`, `identity`, `display` or package/name.   |
+| `pattern_matches(ref, regex)` | Regex-matches legacy strings, structured identity, display or package path. |
+| `is_named(ref, pkg, name)` | Checks a structured named type by package path and type name.                   |
+| `children(ref)`          | Returns direct `elem`, `key` and `value` child refs with known kinds.             |
+| `exposes(ref, forbidden, patterns, allowed)` | Checks a ref and nested refs for forbidden types with same-node allowlist handling. |
