@@ -188,6 +188,8 @@ Run with the custom binary:
 
 Policies use [Rego v1 syntax](https://www.openpolicyagent.org/docs/latest/policy-language/) and must live under `regolint.rules.<category>.<rule>` so regolint can discover `deny` rules.
 
+For a full authoring guide with tests, options, helper libraries and type-aware examples, see [docs/writing-policies.md](docs/writing-policies.md).
+
 ```rego
 package regolint.rules.imports.banned
 
